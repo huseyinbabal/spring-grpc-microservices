@@ -49,5 +49,12 @@ jobs:
           java-version: "21"
           cache: maven
 
+      - name: Install buf
+        # proto-gen's Maven build invokes `buf generate` during the
+        # generate-sources phase, so buf must be on PATH for `mvn verify`.
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: mvn verify
         run: mvn -B -ntp verify
