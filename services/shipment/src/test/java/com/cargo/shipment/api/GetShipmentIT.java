@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -40,6 +41,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "grpc.server.port=-1",
         "grpc.server.in-process-name=shipment-test"
 })
+// See CreateShipmentIT for the reason: release the in-process gRPC
+// server name before the next IT boots its own context.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class GetShipmentIT {
 
     @Container
