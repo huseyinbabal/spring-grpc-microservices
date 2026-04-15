@@ -25,8 +25,8 @@ that verification green.
                │  CF1
                ▼
 ┌──────────────────────────────┐
-│ Phase 1 — common-grpc        │   JWT, error advice, mTLS helper
-│  T1.1..T1.4                  │   (+ CI picks up mvn verify)
+│ Phase 1 — common-grpc        │   JWT interceptor + error advice
+│  T1.1..T1.3                  │   (+ CI picks up mvn verify)
 └──────────────┬───────────────┘
                │  C1
                ▼
@@ -129,7 +129,10 @@ Goal: shared library consumable by the three services.
 | **T1.1** | `common-grpc: scaffold module + parent pom` | Parent pom + `common-grpc` child build with `mvn -pl common-grpc -am package`; CI workflow now runs `mvn verify` | CI goes green with mvn step |
 | **T1.2** | `common-grpc: JwtAuthInterceptor` | Unsigned JWT → `UNAUTHENTICATED`; valid → principal on gRPC `Context` | JUnit with mock JWKS |
 | **T1.3** | `common-grpc: GrpcExceptionAdvice` | `NotFoundException → NOT_FOUND`, `IllegalTransitionException → FAILED_PRECONDITION` | JUnit |
-| **T1.4** | `common-grpc: MtlsClientConfig helper` | Loads cert/key/ca from classpath, returns `SslContext` | JUnit with test fixtures |
+
+> **T1.4 (MtlsClientConfig helper) is dropped** — mTLS between services
+> is deferred past v0.1.0 (see below); the helper would be scaffolding
+> for a feature we're not shipping. If/when mTLS comes back, reopen it.
 
 **Checkpoint C1:** `mvn -pl common-grpc verify` green on CI.
 
@@ -220,7 +223,7 @@ shows the event.
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
-| **T6.1** | `tracking: ShipmentClient w/ mTLS from common-grpc` | Calls Shipment from Tracking | IT w/ both services |
+| **T6.1** | `tracking: ShipmentClient (plaintext intra-compose)` | `ShipmentClient` wraps a plaintext `ManagedChannel` targeting the in-compose `shipment` service and calls `GetShipment` | IT with both services running in compose |
 | **T6.2** | `tracking: sync enrichment fallback in GetTracking` | Missing RM → single Shipment call → cached | IT |
 
 **Checkpoint C6:** sync path tested; Tracking feature-complete.

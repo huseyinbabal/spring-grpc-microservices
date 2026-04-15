@@ -19,8 +19,9 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T1.1** `common-grpc: scaffold module + parent pom`  *(CI now runs mvn verify)*
 - [x] **T1.2** `common-grpc: JwtAuthInterceptor`
 - [x] **T1.3** `common-grpc: GrpcExceptionAdvice`
-- [ ] **T1.4** `common-grpc: MtlsClientConfig helper`
 - [ ] **C1 — CHECKPOINT:** `mvn -pl common-grpc verify` green on CI
+
+> T1.4 (`MtlsClientConfig` helper) was dropped — mTLS between services is deferred past v0.1.0.
 
 ## Phase 2a — Shipment CRUD (Slice 2)
 
@@ -69,7 +70,7 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 3c — Sync enrichment (Slice 6)
 
-- [ ] **T6.1** `tracking: ShipmentClient w/ mTLS from common-grpc`
+- [ ] **T6.1** `tracking: ShipmentClient (plaintext intra-compose)`
 - [ ] **T6.2** `tracking: sync enrichment fallback in GetTracking`
 - [ ] **C6 — CHECKPOINT:** sync path tested; Tracking feature-complete
 
