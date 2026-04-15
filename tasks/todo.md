@@ -38,7 +38,7 @@ stop at each checkpoint and confirm before starting the next phase.
 ## Phase 2b — Outbox + Debezium (Slice 3)
 
 - [x] **T3.1** `shipment: Flyway V2 outbox table + OutboxAppender`
-- [ ] **T3.2** `shipment: wire outbox into Create/UpdateStatus/Cancel`
+- [x] **T3.2** `shipment: wire outbox into Create/UpdateStatus/Cancel`
 - [ ] **T3.3** `shipment: Debezium connector config`
 - [ ] **T3.4** `shipment: full PG+Kafka+Debezium Testcontainers IT`
 - [ ] **C3 — CHECKPOINT:** events flow under IT
