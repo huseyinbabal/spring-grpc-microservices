@@ -25,6 +25,13 @@
 
         <spring.boot.version>3.3.5</spring.boot.version>
         <testcontainers.version>1.21.3</testcontainers.version>
+        <!-- 2.7.3.Final's debezium-testing-testcontainers still has the
+             pre-Strimzi `withKafka(KafkaContainer)` overload. Newer
+             3.4+ releases only expose a Strimzi overload, which
+             javac fails to resolve without the Strimzi class on the
+             classpath. The connect image can still be a newer tag
+             from quay.io — the lib just builds connector configs. -->
+        <debezium.version>2.7.3.Final</debezium.version>
         <!-- Pinned ahead of the version Testcontainers 1.21.x bundles
              (3.4.x) so we get docker-java's updated default Docker API
              version. Docker Desktop 29.2+ rejects the 3.4.x default
@@ -87,6 +94,11 @@
                 <groupId>com.github.docker-java</groupId>
                 <artifactId>docker-java-transport-zerodep</artifactId>
                 <version>${docker.java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.debezium</groupId>
+                <artifactId>debezium-testing-testcontainers</artifactId>
+                <version>${debezium.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
