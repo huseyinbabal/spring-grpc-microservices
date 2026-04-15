@@ -1,0 +1,14 @@
+# Exclude everything the shipment Dockerfile does not explicitly COPY
+# so `docker build` context stays small and doesn't invalidate the
+# cache on unrelated changes (e.g. docs, IDE files).
+**/target/
+**/.idea/
+**/.vscode/
+**/*.iml
+**/.DS_Store
+.git/
+.github/
+tasks/
+SPEC.md
+README.md
+deploy/

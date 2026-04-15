@@ -41,11 +41,11 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T3.2** `shipment: wire outbox into Create/UpdateStatus/Cancel`
 - [x] **T3.3** `shipment: Debezium connector config`
 - [x] **T3.4** `shipment: full PG+Kafka+Debezium Testcontainers IT`
-- [ ] **C3 — CHECKPOINT:** events flow under IT
+- [x] **C3 — CHECKPOINT:** events flow under IT
 
 ## Phase 2c — Shipment in the compose stack
 
-- [ ] **TY.S1** `shipment: multi-stage Dockerfile (JLink JRE)`
+- [x] **TY.S1** `shipment: multi-stage Dockerfile (JLink JRE)`
 - [ ] **TY.S2** `ci: shipment image build + push to GHCR`
 - [ ] **TY.S3** `deploy(compose): postgres-shipment + debezium connect`
 - [ ] **TY.S4** `deploy(compose): shipment service`
