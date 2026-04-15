@@ -68,6 +68,21 @@ final class ShipmentMapper {
         };
     }
 
+    /**
+     * Translates a proto status into its domain equivalent, returning
+     * {@code null} for {@code SHIPMENT_STATUS_UNSPECIFIED} so callers
+     * can treat "unset" as "no filter".
+     */
+    static com.cargo.shipment.domain.ShipmentStatus toDomain(ShipmentStatus proto) {
+        return switch (proto) {
+            case SHIPMENT_STATUS_CREATED -> com.cargo.shipment.domain.ShipmentStatus.CREATED;
+            case SHIPMENT_STATUS_IN_TRANSIT -> com.cargo.shipment.domain.ShipmentStatus.IN_TRANSIT;
+            case SHIPMENT_STATUS_DELIVERED -> com.cargo.shipment.domain.ShipmentStatus.DELIVERED;
+            case SHIPMENT_STATUS_CANCELLED -> com.cargo.shipment.domain.ShipmentStatus.CANCELLED;
+            case SHIPMENT_STATUS_UNSPECIFIED, UNRECOGNIZED -> null;
+        };
+    }
+
     private static Timestamp toProto(Instant instant) {
         return Timestamp.newBuilder()
                 .setSeconds(instant.getEpochSecond())

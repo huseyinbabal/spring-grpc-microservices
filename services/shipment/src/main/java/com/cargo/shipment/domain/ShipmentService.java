@@ -4,6 +4,11 @@ import com.cargo.common.grpc.error.NotFoundException;
 import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.persistence.ShipmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,6 +98,42 @@ public class ShipmentService {
         return repo.findByTrackingCode(trackingCode)
                 .orElseThrow(() -> new NotFoundException(
                         "shipment with tracking_code " + trackingCode + " not found"));
+    }
+
+    /** Default page size when the client does not supply one. */
+    public static final int DEFAULT_PAGE_SIZE = 50;
+
+    /** Hard cap on page size to protect the service from large requests. */
+    public static final int MAX_PAGE_SIZE = 100;
+
+    /**
+     * List shipments with optional filters and offset-style cursor
+     * pagination. {@code pageNumber} is 0-based. The returned
+     * {@link Page} exposes {@code hasNext()} so the caller can build
+     * an opaque continuation token.
+     */
+    @Transactional(readOnly = true)
+    public Page<ShipmentEntity> listShipments(
+            @Nullable ShipmentStatus statusFilter,
+            @Nullable String carrierFilter,
+            int pageNumber,
+            int requestedPageSize) {
+        if (pageNumber < 0) {
+            throw new IllegalArgumentException("page number must be non-negative, got " + pageNumber);
+        }
+        int size = requestedPageSize;
+        if (size <= 0) {
+            size = DEFAULT_PAGE_SIZE;
+        }
+        if (size > MAX_PAGE_SIZE) {
+            size = MAX_PAGE_SIZE;
+        }
+        Pageable pageable = PageRequest.of(
+                pageNumber,
+                size,
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
+        String carrier = (carrierFilter == null || carrierFilter.isBlank()) ? null : carrierFilter;
+        return repo.findByFilters(statusFilter, carrier, pageable);
     }
 
     private String generateTrackingCode() {

@@ -1,16 +1,20 @@
 package com.cargo.shipment.api;
 
 import com.cargo.common.grpc.error.NotFoundException;
+import com.cargo.common.v1.PageResult;
 import com.cargo.shipment.domain.ShipmentService;
 import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.v1.CreateShipmentRequest;
 import com.cargo.shipment.v1.CreateShipmentResponse;
 import com.cargo.shipment.v1.GetShipmentRequest;
 import com.cargo.shipment.v1.GetShipmentResponse;
+import com.cargo.shipment.v1.ListShipmentsRequest;
+import com.cargo.shipment.v1.ListShipmentsResponse;
 import com.cargo.shipment.v1.ShipmentServiceGrpc;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
+import org.springframework.data.domain.Page;
 
 import java.util.UUID;
 
@@ -22,7 +26,6 @@ import java.util.UUID;
  * <p>Remaining RPCs fall through to the {@code ImplBase} default of
  * {@code UNIMPLEMENTED} until:
  * <ul>
- *   <li>T2.6 — {@code ListShipments}</li>
  *   <li>T2.7 — {@code UpdateShipmentStatus}</li>
  *   <li>T2.8 — {@code CancelShipment}</li>
  * </ul>
@@ -91,11 +94,57 @@ public class ShipmentGrpcService extends ShipmentServiceGrpc.ShipmentServiceImpl
         }
     }
 
+    @Override
+    public void listShipments(
+            ListShipmentsRequest request,
+            StreamObserver<ListShipmentsResponse> responseObserver) {
+        try {
+            int pageNumber = parsePageToken(request.getPage().getToken());
+            int pageSize = request.getPage().getSize();
+            com.cargo.shipment.domain.ShipmentStatus statusFilter =
+                    ShipmentMapper.toDomain(request.getStatusFilter());
+            String carrierFilter = request.getCarrierFilter();
+
+            Page<ShipmentEntity> page = service.listShipments(
+                    statusFilter, carrierFilter, pageNumber, pageSize);
+
+            ListShipmentsResponse.Builder responseBuilder = ListShipmentsResponse.newBuilder();
+            for (ShipmentEntity entity : page.getContent()) {
+                responseBuilder.addShipments(ShipmentMapper.toProto(entity));
+            }
+            String nextToken = page.hasNext() ? String.valueOf(pageNumber + 1) : "";
+            responseBuilder.setPage(PageResult.newBuilder().setNextToken(nextToken).build());
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        }
+    }
+
     private static UUID parseUuid(String value) {
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("id must be a valid UUID, got: " + value);
+        }
+    }
+
+    private static int parsePageToken(String token) {
+        if (token == null || token.isBlank()) {
+            return 0;
+        }
+        try {
+            int n = Integer.parseInt(token);
+            if (n < 0) {
+                throw new IllegalArgumentException("page token must be non-negative, got " + n);
+            }
+            return n;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("page token must be an integer, got: " + token);
         }
     }
 }

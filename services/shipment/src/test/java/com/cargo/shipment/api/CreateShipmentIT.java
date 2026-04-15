@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -45,6 +46,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         "grpc.server.port=-1",
         "grpc.server.in-process-name=shipment-test"
 })
+// Close the Spring context after this class so the in-process gRPC
+// server releases the `shipment-test` name before the next IT boots
+// its own context. Without this the second @Testcontainers IT fails
+// to start with "name already registered: shipment-test" because the
+// first context (and its gRPC server) is still alive in the JVM.
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class CreateShipmentIT {
 
     @Container
