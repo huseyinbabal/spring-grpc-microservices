@@ -24,6 +24,12 @@
         <maven.compiler.release>21</maven.compiler.release>
 
         <spring.boot.version>3.3.5</spring.boot.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
+        <!-- Pinned ahead of the version Testcontainers 1.21.x bundles
+             (3.4.x) so we get docker-java's updated default Docker API
+             version. Docker Desktop 29.2+ rejects the 3.4.x default
+             with HTTP 400 on /info probes. -->
+        <docker.java.version>3.7.1</docker.java.version>
         <grpc.spring.starter.version>3.1.0.RELEASE</grpc.spring.starter.version>
         <!-- Must match what the current buf remote plugins
              (buf.build/protocolbuffers/java and buf.build/grpc/java)
@@ -50,6 +56,38 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- IMPORTANT: testcontainers-bom MUST import before
+                 spring-boot-dependencies so our pinned version (1.21.x)
+                 wins over Spring Boot 3.3's bundled 1.19.x. docker-java
+                 3.3.x (what 1.19.x uses) defaults to Docker API 1.43,
+                 which Docker Desktop 29.2+ rejects with 400. -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.github.docker-java</groupId>
+                <artifactId>docker-java-api</artifactId>
+                <version>${docker.java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.docker-java</groupId>
+                <artifactId>docker-java-core</artifactId>
+                <version>${docker.java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.docker-java</groupId>
+                <artifactId>docker-java-transport</artifactId>
+                <version>${docker.java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.docker-java</groupId>
+                <artifactId>docker-java-transport-zerodep</artifactId>
+                <version>${docker.java.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>

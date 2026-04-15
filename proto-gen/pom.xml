@@ -48,16 +48,17 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <executable>buf</executable>
+                            <executable>bash</executable>
                             <!-- Run from the repo root where buf.yaml lives.
-                                 The template file's `out:` paths include the
-                                 `proto-gen/` prefix so output lands in this
-                                 module's target/. -->
+                                 Skip regeneration if the output directory
+                                 already exists so incremental `mvn verify`
+                                 doesn't hit buf BSR rate limits. Run
+                                 `mvn clean` to force a fresh generate after
+                                 editing a .proto file. -->
                             <workingDirectory>${project.basedir}/..</workingDirectory>
                             <arguments>
-                                <argument>generate</argument>
-                                <argument>--template</argument>
-                                <argument>proto-gen/buf.gen.yaml</argument>
+                                <argument>-c</argument>
+                                <argument>if [ ! -d proto-gen/target/generated-sources/proto-gen ]; then buf generate --template proto-gen/buf.gen.yaml; else echo "proto-gen sources already present, skipping buf generate"; fi</argument>
                             </arguments>
                         </configuration>
                     </execution>
