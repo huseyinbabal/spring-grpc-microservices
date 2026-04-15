@@ -10,7 +10,7 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 0 — Foundations (CI + kind + Flux bootstrap)
 
-- [ ] **TX.1** `ci: add buf lint + breaking GitHub Actions workflow`
+- [x] **TX.1** `ci: add buf lint + breaking GitHub Actions workflow`
 - [ ] **TY.1** `deploy(kind): bootstrap script + Flux install`
 - [ ] **TY.2** `deploy(flux): cluster root kustomization for local`
 - [ ] **TY.3** `deploy(flux): cert-manager + ingress-nginx HelmReleases`
