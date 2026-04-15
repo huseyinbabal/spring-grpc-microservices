@@ -28,7 +28,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T2.1** `proto: commit cargo/common/v1 + cargo/shipment/v1`
 - [x] **T2.2** `shipment: scaffold Spring Boot module + gRPC starter`
 - [x] **T2.3** `shipment: Flyway V1 schema + JPA entity + repo`
-- [ ] **T2.4** `shipment: RPC CreateShipment`
+- [x] **T2.4** `shipment: RPC CreateShipment`
 - [ ] **T2.5** `shipment: RPC GetShipment (id + tracking_code oneof)`
 - [ ] **T2.6** `shipment: RPC ListShipments w/ pagination + filters`
 - [ ] **T2.7** `shipment: RPC UpdateShipmentStatus + legal transitions`
