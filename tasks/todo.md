@@ -17,7 +17,7 @@ stop at each checkpoint and confirm before starting the next phase.
 ## Phase 1 — common-grpc (Slice 1)
 
 - [x] **T1.1** `common-grpc: scaffold module + parent pom`  *(CI now runs mvn verify)*
-- [ ] **T1.2** `common-grpc: JwtAuthInterceptor`
+- [x] **T1.2** `common-grpc: JwtAuthInterceptor`
 - [ ] **T1.3** `common-grpc: GrpcExceptionAdvice`
 - [ ] **T1.4** `common-grpc: MtlsClientConfig helper`
 - [ ] **C1 — CHECKPOINT:** `mvn -pl common-grpc verify` green on CI
