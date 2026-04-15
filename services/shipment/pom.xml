@@ -117,6 +117,14 @@
                     </environmentVariables>
                 </configuration>
             </plugin>
+            <plugin>
+                <!-- Resolves the `${org.mockito:mockito-core:jar}` token
+                     in the inherited surefire argLine so unit tests can
+                     attach Mockito as a javaagent on JDK 21+. Matches
+                     the common-grpc wiring. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
         </plugins>
     </build>
 </project>
