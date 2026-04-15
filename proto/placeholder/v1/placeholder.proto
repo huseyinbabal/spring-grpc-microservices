@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package placeholder.v1;
+
+option java_multiple_files = true;
+option java_package = "com.cargo.placeholder.v1";
+
+// Walking-skeleton placeholder. Slice 2 replaces this module with the real
+// common/v1/common.proto and service contracts.
+message Placeholder {
+  string value = 1;
+}
