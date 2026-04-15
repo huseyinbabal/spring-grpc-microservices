@@ -32,6 +32,12 @@
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
         <dependency>
+            <!-- Pulls Jackson + JacksonAutoConfiguration so OutboxAppender
+                 can autowire an ObjectMapper for JSON payload serialization. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
