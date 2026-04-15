@@ -5,9 +5,14 @@ import com.cargo.shipment.persistence.ShipmentRepository;
 import com.cargo.shipment.v1.CreateShipmentRequest;
 import com.cargo.shipment.v1.CreateShipmentResponse;
 import com.cargo.shipment.v1.ShipmentServiceGrpc;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.debezium.testing.testcontainers.DebeziumContainer;
 import io.grpc.ManagedChannel;
 import io.grpc.inprocess.InProcessChannelBuilder;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -39,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -126,7 +132,22 @@ class OutboxCdcIT {
                     "failed to register connector: HTTP " + post.statusCode() + " — " + post.body());
         }
 
-        waitForConnectorRunning();
+        waitForConnectorAndTaskRunning();
+        preCreateTopic();
+    }
+
+    private static void preCreateTopic() throws Exception {
+        // Create the target topic up front so `consumer.subscribe` resolves
+        // the partition assignment immediately instead of waiting for
+        // Debezium to publish the first message (which triggers topic
+        // auto-create but takes O(metadata.max.age.ms) to become visible
+        // to a consumer that subscribed before the topic existed).
+        try (AdminClient admin = AdminClient.create(Map.of(
+                AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers()))) {
+            admin.createTopics(List.of(new NewTopic(TOPIC, 1, (short) 1)))
+                    .all()
+                    .get(10, TimeUnit.SECONDS);
+        }
     }
 
     @BeforeEach
@@ -143,6 +164,10 @@ class OutboxCdcIT {
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers());
         props.put(ConsumerConfig.GROUP_ID_CONFIG, "outbox-cdc-it-" + UUID.randomUUID());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        // Short metadata refresh so the consumer picks up partition
+        // reassignments / new topics within a second instead of the
+        // default 5 minutes.
+        props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, "1000");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         consumer = new KafkaConsumer<>(props);
@@ -171,6 +196,16 @@ class OutboxCdcIT {
         String trackingCode = response.getShipment().getTrackingCode();
 
         ConsumerRecord<String, String> event = pollForEvent(shipmentId);
+
+        if (event == null) {
+            // Dump the Debezium Connect container logs on failure so
+            // the CI log has enough context to debug connector/task
+            // startup problems without re-running.
+            System.err.println("=== Debezium Connect logs ===");
+            System.err.println(CONNECT.getLogs());
+            System.err.println("=== Kafka logs ===");
+            System.err.println(KAFKA.getLogs());
+        }
 
         assertThat(event)
                 .as("expected a shipment.created event on %s within 10s for shipment %s",
@@ -214,9 +249,11 @@ class OutboxCdcIT {
         return null;
     }
 
-    private static void waitForConnectorRunning() throws Exception {
+    private static void waitForConnectorAndTaskRunning() throws Exception {
         HttpClient http = HttpClient.newHttpClient();
-        long deadline = System.currentTimeMillis() + 30_000;
+        ObjectMapper mapper = new ObjectMapper();
+        String lastBody = "";
+        long deadline = System.currentTimeMillis() + 60_000;
         while (System.currentTimeMillis() < deadline) {
             HttpResponse<String> response = http.send(
                     HttpRequest.newBuilder()
@@ -225,14 +262,29 @@ class OutboxCdcIT {
                             .GET()
                             .build(),
                     HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200
-                    && response.body().contains("\"state\":\"RUNNING\"")) {
-                return;
+            if (response.statusCode() == 200) {
+                lastBody = response.body();
+                JsonNode root = mapper.readTree(lastBody);
+                String connectorState = root.path("connector").path("state").asText();
+                JsonNode tasks = root.path("tasks");
+                boolean allTasksRunning = tasks.isArray() && tasks.size() > 0;
+                if (allTasksRunning) {
+                    for (JsonNode task : tasks) {
+                        if (!"RUNNING".equals(task.path("state").asText())) {
+                            allTasksRunning = false;
+                            break;
+                        }
+                    }
+                }
+                if ("RUNNING".equals(connectorState) && allTasksRunning) {
+                    return;
+                }
             }
             Thread.sleep(1000);
         }
         throw new IllegalStateException(
-                "connector " + CONNECTOR_NAME + " did not reach RUNNING state within 30s");
+                "connector " + CONNECTOR_NAME + " did not reach RUNNING state within 60s; last status: "
+                        + lastBody + "\nConnect logs:\n" + CONNECT.getLogs());
     }
 
     private static CreateShipmentRequest validRequest() {
