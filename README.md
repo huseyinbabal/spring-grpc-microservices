@@ -1,10 +1,9 @@
 # spring-grpc-microservices
 
 Cargo tracking platform — Spring Boot + gRPC microservices with Debezium CDC,
-Kafka, Envoy gRPC-Web, Keycloak OAuth2, and mTLS. Deployed to a 3-node
-Hetzner k3s cluster provisioned by
-[`hetzner-k3s`](https://github.com/vitobotta/hetzner-k3s) and reconciled
-by Flux CD.
+Kafka, Envoy gRPC-Web, and Keycloak OAuth2. The whole stack (shared
+infra + three services) runs locally via a single `compose.yaml`.
+Kubernetes deployment is deferred until after v0.1.0.
 
 See [`SPEC.md`](SPEC.md) for the umbrella spec and per-service PRDs, and
 [`tasks/plan.md`](tasks/plan.md) for the PR-sized task breakdown.
@@ -18,10 +17,8 @@ services/
   shipment/         Shipment Service (Slices 2–3)
   tracking/         Tracking Service (Slices 4–5)
   notification/     Notification Service (Slice 7)
+compose.yaml        # local dev / e2e deployment stack (Kafka, services, ...)
 deploy/
-  hetzner/          hetzner-k3s cluster config (3-node k3s on Hetzner)
-  flux/             Flux CD kustomizations (apps + infra)
-  helm/             per-service Helm charts
   debezium/         Kafka Connect connector configs (Slice 3)
 scripts/            local dev + e2e scripts
 SPEC.md             umbrella spec + per-service PRDs
@@ -31,35 +28,27 @@ tasks/              implementation plan + checklist
 ## Prerequisites
 
 - JDK 21, Maven 3.9+
-- Docker (for building images locally)
+- Docker Engine 27+ with Compose v2
 - `buf` ≥ 1.60
-- `hetzner-k3s` ≥ 2.4 (reads Hetzner Cloud token from `HCLOUD_TOKEN`)
-- `kubectl` + `flux` ≥ 2.2
-- `helm` ≥ 3.14
 
 ## Run locally
 
 ```sh
-make lint           # buf lint + mvn validate + helm lint
-make proto          # buf generate Java stubs
-make test           # mvn verify (unit + Testcontainers IT)
-make cluster-up     # hetzner-k3s create + flux bootstrap + reconcile deploy/flux/clusters/local
-make cluster-down   # hetzner-k3s delete  ⚠ destroys cloud resources
-make demo           # e2e: create shipment → stream tracking → assert notify log
-make clean          # wipe gen/ + target/
+make lint        # buf lint + mvn validate
+make proto       # buf generate Java stubs
+make test        # mvn verify (unit + Testcontainers IT)
+make up          # docker compose up -d
+make down        # docker compose down
+make demo        # e2e: create shipment → stream tracking → assert notify log
+make clean       # wipe gen/ + target/
 ```
 
-> ⚠ `make cluster-up` provisions real Hetzner nodes (~€17/month on
-> default instance sizes). Always `make cluster-down` when you're done
-> for the day.
-
-Manual cluster provision (with `HCLOUD_TOKEN` exported):
+Manual stack startup:
 
 ```sh
-hetzner-k3s create --config deploy/hetzner/cluster.yaml
-export KUBECONFIG="$PWD/deploy/hetzner/kubeconfig"
-kubectl get nodes
-flux get kustomizations
+docker compose up -d
+docker compose ps
+docker compose logs -f kafka
 ```
 
 ## Status

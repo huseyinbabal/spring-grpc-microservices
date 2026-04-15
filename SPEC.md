@@ -337,7 +337,7 @@ outbox { id UUID PK, aggregate_type text, aggregate_id text,
 
 - [ ] `buf lint` + `buf breaking` clean on main
 - [ ] `make proto` regenerates Java stubs + grpc-web TypeScript client
-- [ ] All three services reconcile under Flux in the 3-node Hetzner k3s cluster and pass a `grpcurl` smoke test via port-forward
+- [ ] All three services start via `docker compose up -d` and pass a `grpcurl` smoke test against the exposed ports
 - [ ] Keycloak realm boots with `cargo` realm + `cargo-client` confidential client
 - [ ] Envoy routes gRPC-Web → Shipment + Tracking, terminates TLS
 - [ ] Internal calls (service → service) require client certs (mTLS)
@@ -348,12 +348,12 @@ outbox { id UUID PK, aggregate_type text, aggregate_id text,
 ## 6. Commands
 
 ```sh
-make lint    # buf lint + mvn validate + helm lint
+make lint    # buf lint + mvn validate
 make proto   # buf generate → gen/java + gen/grpc-web
 make build   # mvn -T1C package
 make test    # mvn verify (unit + Testcontainers integration)
-make cluster-up    # hetzner-k3s create + flux bootstrap + reconcile deploy/flux/clusters/local
-make cluster-down  # hetzner-k3s delete (destroys cloud resources)
+make up            # docker compose up -d
+make down          # docker compose down
 make demo    # scripted e2e: create shipment, push tracking, assert notify log
 make clean   # wipe gen/ + target/
 ```
@@ -369,10 +369,8 @@ services/
   shipment/                    # Spring Boot + grpc-spring-boot-starter
   tracking/
   notification/
+compose.yaml                   # local dev / e2e deployment stack
 deploy/
-  hetzner/                     # hetzner-k3s cluster config (3-node)
-  flux/                        # Flux CD kustomizations
-  helm/{shipment,tracking,notification}/
   debezium/                    # Kafka Connect connector JSON
   envoy/                       # envoy.yaml (gRPC-Web + TLS)
   keycloak/                    # realm export
@@ -419,7 +417,7 @@ Coverage target: 80% line on `domain/` packages. No target on generated code.
 - Adding a new service or new Kafka topic
 - Changing proto package layout or service boundaries
 - Pulling in a new infra dep (Redis, Elasticsearch, etc.)
-- Anything that touches `deploy/flux/` production overlays
+- Anything that changes `compose.yaml` service topology (ports, networks, volumes shared by multiple services)
 
 **Never**
 - Share a database between services
