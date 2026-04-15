@@ -22,3 +22,7 @@ Thumbs.db
 
 # Local-only Claude settings
 .claude/settings.local.json
+
+# Generated cluster kubeconfig (contains credentials)
+deploy/hetzner/kubeconfig
+deploy/hetzner/kubeconfig.*

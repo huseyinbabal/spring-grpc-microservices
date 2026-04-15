@@ -1,0 +1,55 @@
+---
+# hetzner-k3s cluster config for the cargo training platform.
+#
+# Reads the Hetzner Cloud token from the HCLOUD_TOKEN environment
+# variable — no templating or envsubst needed.
+#
+# Usage:
+#   hetzner-k3s create --config deploy/hetzner/cluster.yaml
+#
+# Tear down:
+#   hetzner-k3s delete --config deploy/hetzner/cluster.yaml
+#
+# Nodes: 1 control-plane (cpx22, 2 vCPU / 4 GB) + 2 workers (cpx32,
+# 4 vCPU / 8 GB) in Falkenstein. Workloads are pinned off the master
+# so Kafka + Postgres + Debezium + the three services have room on
+# the worker pool. On-demand pricing is roughly €5/mo master + €8/mo
+# per worker. Adjust instance_type / location / instance_count to
+# fit your budget.
+#
+# Instance-type notes: cpx22 and cpx32 are the current-generation AMD
+# shared-vCPU types. Older `cx22`/`cx32` and `cpx21`/`cpx31` are out
+# of stock in EU locations as of 2026-Q2 — verify availability with
+# `curl -H "Authorization: Bearer $HCLOUD_TOKEN" \
+#   https://api.hetzner.cloud/v1/datacenters` before changing.
+
+cluster_name: cargo
+kubeconfig_path: "./deploy/hetzner/kubeconfig"
+k3s_version: v1.33.1+k3s1
+
+# Networking — 0.0.0.0/0 is convenient for training but exposes the
+# k3s API and SSH to the whole internet. TIGHTEN before any non-toy use.
+ssh_allowed_networks:
+  - 0.0.0.0/0
+api_allowed_networks:
+  - 0.0.0.0/0
+
+# SSH key used by hetzner-k3s to provision and manage nodes.
+public_ssh_key_path: "~/.ssh/id_ed25519.pub"
+private_ssh_key_path: "~/.ssh/id_ed25519"
+use_ssh_agent: false
+
+# Keep master dedicated to control plane so worker pool has full
+# headroom for Kafka + Postgres + services.
+schedule_workloads_on_masters: false
+
+masters_pool:
+  instance_type: cpx22
+  instance_count: 1
+  location: fsn1
+
+worker_node_pools:
+  - name: workers
+    instance_type: cpx32
+    instance_count: 2
+    location: fsn1

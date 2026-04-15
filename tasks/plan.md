@@ -1,7 +1,8 @@
 # Implementation Plan — Cargo Tracking Platform
 
 Derived from [`SPEC.md`](../SPEC.md). Organizes the work into vertical,
-PR-sized tasks. **Deployment target: kind + Flux only** — no docker-compose.
+PR-sized tasks. **Deployment target: Hetzner k3s + Flux only** —
+provisioned by [`hetzner-k3s`](https://github.com/vitobotta/hetzner-k3s).
 
 Each task is a thin end-to-end slice (proto → domain → persistence → API →
 test, or infra → chart → release) and is intended to land as **one PR**.
@@ -16,9 +17,9 @@ verification green.
 
 ```
 ┌──────────────────────────────┐
-│ Phase 0 — Foundations        │   CI pipeline, kind+Flux bootstrap,
-│  TX.1   CI (buf lint)        │   shared infra HelmReleases
-│  TY.1   kind bootstrap       │
+│ Phase 0 — Foundations        │   CI pipeline, Hetzner k3s cluster,
+│  TX.1   CI (buf lint)        │   Flux bootstrap, shared infra
+│  TY.1   hetzner-k3s cluster  │
 │  TY.2   Flux cluster root    │
 │  TY.3   cert-mgr + ingress   │
 └──────────────┬───────────────┘
@@ -72,7 +73,7 @@ verification green.
                  │  CY4
                  ▼
       ┌──────────────────────┐
-      │ Phase 6 — Ship       │  make demo (against kind),
+      │ Phase 6 — Ship       │  make demo (against k3s),
       │  T9.1..T9.3          │  JSON logs, Prometheus
       └──────────┬───────────┘
                  │  C9 → v0.1.0
@@ -92,9 +93,10 @@ are independent and can run as two PR streams.
   and lands a passing test or a reconciled resource.
 - **One PR per task.** Keep diffs reviewable. Rename if a task starts
   sprawling.
-- **Testcontainers for logic, kind for topology.** Inner-loop IT uses
-  Testcontainers; kind+Flux is only for "does this actually deploy"
-  verification at checkpoints CY1–CY4.
+- **Testcontainers for logic, Hetzner k3s for topology.** Inner-loop IT
+  uses Testcontainers; the Hetzner cluster + Flux is only for "does this
+  actually deploy" verification at checkpoints CY1–CY4. Tear the cluster
+  down between sessions to keep spend in check.
 - **No generated artifacts in git.** `gen/`, `target/`, built images —
   all gitignored. GHCR is the image store.
 - **Image tags by commit SHA.** Flux `HelmRelease` values pin to
@@ -102,20 +104,22 @@ are independent and can run as two PR streams.
 
 ---
 
-## Phase 0 — Foundations (CI + kind scaffolding)
+## Phase 0 — Foundations (CI + Hetzner k3s + Flux)
 
-Goal: `main` is protected by CI, a single `make cluster-up` produces a
-reconciling kind cluster with Flux + cert-manager + ingress installed.
+Goal: `main` is protected by CI, and `hetzner-k3s create --config
+deploy/hetzner/cluster.yaml` produces a reconciling 3-node Hetzner k3s
+cluster with Flux + cert-manager + ingress installed.
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
 | **TX.1** | `ci: add buf lint + breaking GitHub Actions workflow` | `.github/workflows/ci.yml` runs `buf lint` and `buf breaking --against .git#branch=main` on every PR | PR from a branch with a proto break fails CI |
-| **TY.1** | `deploy(kind): bootstrap script + Flux install` | `deploy/kind/bootstrap.sh` creates cluster, installs Flux, enables image reflector/automation controllers | Running the script ends with `flux check` clean |
-| **TY.2** | `deploy(flux): cluster root kustomization for local` | `deploy/flux/clusters/local/flux-system/` + empty `infra/` + `apps/` kustomizations reconciled | `flux get kustomizations` shows `infra` + `apps` Ready |
-| **TY.3** | `deploy(flux): cert-manager + ingress-nginx HelmReleases` | HelmReleases under `deploy/flux/infra/` for cert-manager and ingress-nginx | `kubectl get pods -n cert-manager` and `-n ingress-nginx` all Ready |
+| **TY.1** | `deploy(hetzner): hetzner-k3s cluster config (3 nodes)` | `deploy/hetzner/cluster.yaml` defines 1 × cpx22 master + 2 × cpx32 workers in `fsn1`; reads `HCLOUD_TOKEN` from env; kubeconfig path gitignored | `hetzner-k3s create --config deploy/hetzner/cluster.yaml` passes config validation and provisions the cluster; `kubectl --kubeconfig deploy/hetzner/kubeconfig get nodes` shows 3 Ready |
+| **TY.2** | `deploy(flux): Flux bootstrap + cluster root kustomization` | `flux bootstrap github` installs Flux on the k3s cluster and commits `deploy/flux/clusters/local/flux-system/` + empty `infra/` + `apps/` Kustomizations | `flux get kustomizations` shows `infra` + `apps` Ready |
+| **TY.3** | `deploy(flux): cert-manager + ingress-nginx HelmReleases` | HelmReleases under `deploy/flux/infra/` for cert-manager and ingress-nginx (k3s default Traefik disabled via `disable_traefik`) | `kubectl get pods -n cert-manager` and `-n ingress-nginx` all Ready |
 
-**Checkpoint CF1:** `./deploy/kind/bootstrap.sh` exits 0, `flux get
-kustomizations` shows everything Ready, `kubectl get pods -A` is clean.
+**Checkpoint CF1:** `hetzner-k3s create` provisions the 3-node cluster,
+Flux bootstrap commits `flux-system/`, `flux get kustomizations` shows
+everything Ready, `kubectl get pods -A` is clean.
 
 ---
 
@@ -169,10 +173,11 @@ publishes `cargo.shipment.events` under Testcontainers IT.
 
 ---
 
-## Phase 2c — Shipment deployment to kind (new, deployment track)
+## Phase 2c — Shipment deployment to Hetzner k3s (deployment track)
 
 Goal: Shipment + its infra (Postgres, Kafka, Debezium) reconcile under
-Flux in kind; GH Actions publishes an image to GHCR on every main commit.
+Flux in the Hetzner k3s cluster; GH Actions publishes an image to GHCR
+on every main commit.
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
@@ -184,9 +189,9 @@ Flux in kind; GH Actions publishes an image to GHCR on every main commit.
 | **TY.S6** | `deploy(flux): Kafka Connect + Debezium connector` | Kafka Connect HelmRelease with Debezium plugin; `KafkaConnector` CR pointing at shipment outbox | `connector/status` = RUNNING |
 | **TY.S7** | `deploy(flux): shipment HelmRelease` | `deploy/flux/apps/shipment.yaml` HelmRelease pinned to `:<sha>`, reads DB creds from secret | `flux reconcile helmrelease shipment` Ready |
 
-**Checkpoint CY1:** `make cluster-up` + merging a PR → kind cluster with
-Shipment + deps Ready. `kubectl port-forward svc/shipment 9090` +
-`grpcurl CreateShipment` + `kafka-console-consumer` on
+**Checkpoint CY1:** `hetzner-k3s create` + merging a PR → the Hetzner
+k3s cluster has Shipment + deps Ready. `kubectl port-forward svc/shipment
+9090` + `grpcurl CreateShipment` + `kafka-console-consumer` on
 `cargo.shipment.events` shows the event.
 
 ---
@@ -229,7 +234,7 @@ Shipment + deps Ready. `kubectl port-forward svc/shipment 9090` +
 
 ---
 
-## Phase 3d — Tracking deployment to kind
+## Phase 3d — Tracking deployment to Hetzner k3s
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
@@ -256,7 +261,7 @@ the in-cluster Kafka; port-forward `StreamTracking` returns events.
 
 ---
 
-## Phase 4b — Notification deployment to kind
+## Phase 4b — Notification deployment to Hetzner k3s
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
@@ -266,7 +271,7 @@ the in-cluster Kafka; port-forward `StreamTracking` returns events.
 | **TY.N4** | `deploy(flux): notification HelmRelease` | `apps/notification.yaml` | Reconciled |
 
 **Checkpoint CY3:** `kubectl logs -l app=notification` shows NOTIFY
-lines triggered by Shipment RPCs in kind.
+lines triggered by Shipment RPCs in the k3s cluster.
 
 ---
 
@@ -277,10 +282,10 @@ lines triggered by Shipment RPCs in kind.
 | **T8.1** | `deploy(flux): Keycloak HelmRelease + cargo realm import` | Bitnami Keycloak chart, realm ConfigMap mounted, `cargo-client` confidential client + test user | `curl .../.well-known/openid-configuration` |
 | **T8.2** | `deploy(flux): Envoy HelmRelease + gRPC-Web filter` | Envoy Deployment + Ingress exposing gRPC-Web with TLS termination, routes to shipment + tracking | Browser grpc-web client hits `GetShipment` |
 | **T8.3** | `deploy(flux): cert-manager CA issuer + service Certificates` | `ClusterIssuer` + per-service `Certificate` resources; mTLS secrets mounted into pods | `openssl s_client` shows client cert presented |
-| **T8.4** | `services: enable JWT requirement across all three` | Interceptor from T1.2 active under a kind profile; anonymous call → `UNAUTHENTICATED` | Smoke test w/ + w/o token |
+| **T8.4** | `services: enable JWT requirement across all three` | Interceptor from T1.2 active under the k3s profile; anonymous call → `UNAUTHENTICATED` | Smoke test w/ + w/o token |
 
-**Checkpoint CY4:** edge + auth + mTLS all verified in kind. (Replaces
-old C8.)
+**Checkpoint CY4:** edge + auth + mTLS all verified in the k3s cluster.
+(Replaces old C8.)
 
 ---
 
@@ -288,7 +293,7 @@ old C8.)
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
-| **T9.1** | `scripts: make demo against kind cluster` | Script port-forwards, obtains Keycloak token, creates shipment, pushes 5 tracking events, streams, asserts NOTIFY log | `make demo` exits 0 |
+| **T9.1** | `scripts: make demo against Hetzner k3s cluster` | Script port-forwards, obtains Keycloak token, creates shipment, pushes 5 tracking events, streams, asserts NOTIFY log | `make demo` exits 0 |
 | **T9.2** | `services: JSON structured logging + shipment_id MDC` | Log lines parseable; MDC present on every request-path line | `kubectl logs` grep |
 | **T9.3** | `deploy(flux): Prometheus + Grafana + ServiceMonitors` | Prometheus scrapes `/actuator/prometheus`; sample dashboard ConfigMap | Grafana shows shipment QPS |
 
@@ -323,10 +328,16 @@ column. Keep PRs:
 
 ## Risks
 
-- **Strimzi + Debezium on kind** — resource-hungry. Mitigation: single
-  broker, single connect worker, request limits tuned for laptop.
-- **Image pull in kind** — `kind load docker-image` vs GHCR. Default to
-  GHCR pull (prod-shaped); `kind load` is a dev fallback.
+- **Strimzi + Debezium on a 2-worker k3s cluster** — resource-hungry.
+  Mitigation: single broker, single connect worker, request limits
+  tuned for `cpx32` (4 vCPU / 8 GB). Scale up to `cpx41`/`cpx42` if the
+  worker pool saturates.
+- **Hetzner spend** — a forgotten cluster is ~€20/mo. Mitigation:
+  `make cluster-down` at end of day; CI pipeline never touches real
+  infra.
+- **Image pull from GHCR into k3s** — public images pull fine; private
+  images need an imagePullSecret referencing a GHCR PAT. TY.S2 sets
+  image visibility to public by default; revisit for real projects.
 - **Flux reconcile time** — initial reconcile of 6+ HelmReleases is slow.
   Mitigation: document `flux reconcile --with-source` as the fast path.
 - **Debezium IT flakiness (T3.4)** — slow connector startup. Mitigation:

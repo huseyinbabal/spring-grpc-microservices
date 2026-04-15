@@ -8,13 +8,13 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ---
 
-## Phase 0 — Foundations (CI + kind + Flux bootstrap)
+## Phase 0 — Foundations (CI + Hetzner k3s + Flux)
 
 - [x] **TX.1** `ci: add buf lint + breaking GitHub Actions workflow`
-- [ ] **TY.1** `deploy(kind): bootstrap script + Flux install`
-- [ ] **TY.2** `deploy(flux): cluster root kustomization for local`
+- [x] **TY.1** `deploy(hetzner): hetzner-k3s cluster config (3 nodes)`
+- [ ] **TY.2** `deploy(flux): Flux bootstrap + cluster root kustomization`
 - [ ] **TY.3** `deploy(flux): cert-manager + ingress-nginx HelmReleases`
-- [ ] **CF1 — CHECKPOINT:** `./deploy/kind/bootstrap.sh` → `flux get kustomizations` all Ready
+- [ ] **CF1 — CHECKPOINT:** `hetzner-k3s create` → 3-node cluster → `flux get kustomizations` all Ready
 
 ## Phase 1 — common-grpc (Slice 1)
 
@@ -44,7 +44,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T3.4** `shipment: full PG+Kafka+Debezium Testcontainers IT`
 - [ ] **C3 — CHECKPOINT:** events flow under IT
 
-## Phase 2c — Shipment deployment to kind
+## Phase 2c — Shipment deployment to Hetzner k3s
 
 - [ ] **TY.S1** `shipment: multi-stage Dockerfile (JLink JRE)`
 - [ ] **TY.S2** `ci: shipment image build + push to GHCR`
@@ -53,7 +53,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **TY.S5** `deploy(flux): Strimzi Kafka operator + cluster`
 - [ ] **TY.S6** `deploy(flux): Kafka Connect + Debezium connector`
 - [ ] **TY.S7** `deploy(flux): shipment HelmRelease`
-- [ ] **CY1 — CHECKPOINT:** shipment + deps reconciled in kind; grpcurl CreateShipment → event on `cargo.shipment.events`
+- [ ] **CY1 — CHECKPOINT:** shipment + deps reconciled in k3s; grpcurl CreateShipment → event on `cargo.shipment.events`
 
 ## Phase 3a — Tracking ingest + RM (Slice 4)
 
@@ -78,7 +78,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T6.2** `tracking: sync enrichment fallback in GetTracking`
 - [ ] **C6 — CHECKPOINT:** sync path tested; Tracking feature-complete
 
-## Phase 3d — Tracking deployment to kind
+## Phase 3d — Tracking deployment to Hetzner k3s
 
 - [ ] **TY.T1** `tracking: multi-stage Dockerfile`
 - [ ] **TY.T2** `ci: tracking image build + push to GHCR`
@@ -94,7 +94,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T7.3** `notification: StalledCargoDetector scheduled job`
 - [ ] **C7 — CHECKPOINT:** notifications observable under IT
 
-## Phase 4b — Notification deployment to kind
+## Phase 4b — Notification deployment to Hetzner k3s
 
 - [ ] **TY.N1** `notification: Dockerfile`
 - [ ] **TY.N2** `ci: notification image build + push to GHCR`
@@ -108,11 +108,11 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T8.2** `deploy(flux): Envoy HelmRelease + gRPC-Web filter`
 - [ ] **T8.3** `deploy(flux): cert-manager CA issuer + service Certificates`
 - [ ] **T8.4** `services: enable JWT requirement across all three`
-- [ ] **CY4 — CHECKPOINT:** edge + auth + mTLS verified in kind
+- [ ] **CY4 — CHECKPOINT:** edge + auth + mTLS verified in the k3s cluster
 
 ## Phase 6 — Ship (Slice 9)
 
-- [ ] **T9.1** `scripts: make demo against kind cluster`
+- [ ] **T9.1** `scripts: make demo against Hetzner k3s cluster`
 - [ ] **T9.2** `services: JSON structured logging + shipment_id MDC`
 - [ ] **T9.3** `deploy(flux): Prometheus + Grafana + ServiceMonitors`
 - [ ] **C9 — SHIP:** tag `v0.1.0`, all SPEC §5 criteria ticked
