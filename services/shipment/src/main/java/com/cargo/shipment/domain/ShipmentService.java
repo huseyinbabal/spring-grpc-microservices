@@ -1,5 +1,6 @@
 package com.cargo.shipment.domain;
 
+import com.cargo.common.grpc.error.NotFoundException;
 import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.persistence.ShipmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +67,32 @@ public class ShipmentService {
         entity.setStatus(ShipmentStatus.CREATED);
         entity.setWeightKg(weightKg);
         return repo.save(entity);
+    }
+
+    /**
+     * Look up a shipment by its server-assigned UUID.
+     *
+     * @throws NotFoundException if no shipment with this id exists
+     */
+    @Transactional(readOnly = true)
+    public ShipmentEntity findShipment(UUID id) {
+        return repo.findById(id)
+                .orElseThrow(() -> new NotFoundException("shipment " + id + " not found"));
+    }
+
+    /**
+     * Look up a shipment by its human-friendly tracking code.
+     *
+     * @throws NotFoundException if no shipment with this tracking code exists
+     */
+    @Transactional(readOnly = true)
+    public ShipmentEntity findShipmentByTrackingCode(String trackingCode) {
+        if (trackingCode == null || trackingCode.isBlank()) {
+            throw new IllegalArgumentException("tracking_code is required");
+        }
+        return repo.findByTrackingCode(trackingCode)
+                .orElseThrow(() -> new NotFoundException(
+                        "shipment with tracking_code " + trackingCode + " not found"));
     }
 
     private String generateTrackingCode() {
