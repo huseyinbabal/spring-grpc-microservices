@@ -1,0 +1,29 @@
+// Shared types used by more than one cargo tracking service.
+syntax = "proto3";
+
+package cargo.common.v1;
+
+option java_multiple_files = true;
+option java_package = "com.cargo.common.v1";
+
+// A postal address. Used on the origin and destination of every shipment.
+message Address {
+  string line1 = 1;
+  string city = 2;
+  string country = 3;
+  string postal_code = 4;
+}
+
+// Opaque pagination cursor consumed by list RPCs.
+message Page {
+  // Maximum number of items to return. Server caps at 100.
+  int32 size = 1;
+  // Opaque continuation token returned by a previous call.
+  string token = 2;
+}
+
+// Continuation token returned by a list RPC.
+message PageResult {
+  // Token to pass back in the next request. Empty when there are no more pages.
+  string next_token = 1;
+}
