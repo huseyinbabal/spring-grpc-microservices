@@ -131,6 +131,28 @@ public class ShipmentService {
         return repo.save(entity);
     }
 
+    /**
+     * Cancel a shipment. Only allowed from {@code CREATED} or
+     * {@code IN_TRANSIT}; any other starting status rejects with
+     * {@link IllegalTransitionException}.
+     *
+     * @throws NotFoundException          if no shipment with this id exists
+     * @throws IllegalTransitionException if the shipment is already
+     *     delivered or cancelled
+     */
+    @Transactional
+    public ShipmentEntity cancelShipment(UUID id) {
+        ShipmentEntity entity = repo.findById(id)
+                .orElseThrow(() -> new NotFoundException("shipment " + id + " not found"));
+        ShipmentStatus current = entity.getStatus();
+        if (current != ShipmentStatus.CREATED && current != ShipmentStatus.IN_TRANSIT) {
+            throw new IllegalTransitionException(
+                    "cannot cancel shipment in status " + current);
+        }
+        entity.setStatus(ShipmentStatus.CANCELLED);
+        return repo.save(entity);
+    }
+
     private static boolean isLegalTransition(ShipmentStatus from, ShipmentStatus to) {
         if (from == to) {
             return false;

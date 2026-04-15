@@ -32,7 +32,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T2.5** `shipment: RPC GetShipment (id + tracking_code oneof)`
 - [x] **T2.6** `shipment: RPC ListShipments w/ pagination + filters`
 - [x] **T2.7** `shipment: RPC UpdateShipmentStatus + legal transitions`
-- [ ] **T2.8** `shipment: RPC CancelShipment`
+- [x] **T2.8** `shipment: RPC CancelShipment`
 - [ ] **C2 — CHECKPOINT:** 5 RPCs green under Testcontainers PG
 
 ## Phase 2b — Outbox + Debezium (Slice 3)

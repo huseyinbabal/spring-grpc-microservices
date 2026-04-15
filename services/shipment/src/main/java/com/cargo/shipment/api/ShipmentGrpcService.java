@@ -5,6 +5,8 @@ import com.cargo.common.grpc.error.NotFoundException;
 import com.cargo.common.v1.PageResult;
 import com.cargo.shipment.domain.ShipmentService;
 import com.cargo.shipment.persistence.ShipmentEntity;
+import com.cargo.shipment.v1.CancelShipmentRequest;
+import com.cargo.shipment.v1.CancelShipmentResponse;
 import com.cargo.shipment.v1.CreateShipmentRequest;
 import com.cargo.shipment.v1.CreateShipmentResponse;
 import com.cargo.shipment.v1.GetShipmentRequest;
@@ -26,11 +28,7 @@ import java.util.UUID;
  * domain calls, delegates to {@link ShipmentService}, and maps results
  * (or validation failures) back to gRPC responses.
  *
- * <p>Remaining RPCs fall through to the {@code ImplBase} default of
- * {@code UNIMPLEMENTED} until:
- * <ul>
- *   <li>T2.8 — {@code CancelShipment}</li>
- * </ul>
+ * <p>All Phase 2a RPCs are wired. Outbox + Debezium land in Phase 2b.
  */
 @GrpcService
 public class ShipmentGrpcService extends ShipmentServiceGrpc.ShipmentServiceImplBase {
@@ -141,6 +139,39 @@ public class ShipmentGrpcService extends ShipmentServiceGrpc.ShipmentServiceImpl
             }
             ShipmentEntity entity = service.updateShipmentStatus(id, newStatus);
             UpdateShipmentStatusResponse response = UpdateShipmentStatusResponse.newBuilder()
+                    .setShipment(ShipmentMapper.toProto(entity))
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        } catch (NotFoundException e) {
+            responseObserver.onError(
+                    Status.NOT_FOUND
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        } catch (IllegalTransitionException e) {
+            responseObserver.onError(
+                    Status.FAILED_PRECONDITION
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void cancelShipment(
+            CancelShipmentRequest request,
+            StreamObserver<CancelShipmentResponse> responseObserver) {
+        try {
+            UUID id = parseUuid(request.getId());
+            ShipmentEntity entity = service.cancelShipment(id);
+            CancelShipmentResponse response = CancelShipmentResponse.newBuilder()
                     .setShipment(ShipmentMapper.toProto(entity))
                     .build();
             responseObserver.onNext(response);
