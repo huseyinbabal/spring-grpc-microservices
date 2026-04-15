@@ -82,8 +82,12 @@ class ShipmentOutboxConnectorConfigTest {
         assertThat(config.path("transforms.outbox.table.field.event.type").asText()).isEqualTo("type");
         assertThat(config.path("transforms.outbox.table.field.event.payload").asText())
                 .isEqualTo("payload");
-        assertThat(config.path("transforms.outbox.table.field.event.timestamp").asText())
-                .isEqualTo("created_at");
+        // Deliberately no `event.timestamp` mapping: `created_at` is a
+        // TIMESTAMPTZ which Debezium surfaces as a ZonedTimestamp STRING,
+        // and the EventRouter SMT's event.timestamp expects INT64 epoch
+        // millis — leaving it unset lets Kafka Connect use the default
+        // record timestamp (the connector's source event time).
+        assertThat(config.has("transforms.outbox.table.field.event.timestamp")).isFalse();
     }
 
     @Test
