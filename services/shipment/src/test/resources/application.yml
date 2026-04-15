@@ -1,0 +1,12 @@
+grpc:
+  server:
+    # Disable the TCP gRPC listener by default for all tests. Keeps
+    # non-grpc ITs (ShipmentRepositoryIT, OutboxAppenderIT,
+    # ShipmentOutboxIT) from fighting over port 9090 when Testcontainers
+    # per-class contexts accumulate in the Spring TestContext cache.
+    #
+    # Tests that need an in-process gRPC server override
+    # `grpc.server.in-process-name` in their own @TestPropertySource
+    # (see CreateShipmentIT, GetShipmentIT, ListShipmentsIT,
+    # UpdateShipmentStatusIT, CancelShipmentIT).
+    port: -1
