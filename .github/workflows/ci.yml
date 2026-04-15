@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  proto:
+    name: buf lint + breaking
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: buf lint
+        uses: bufbuild/buf-lint-action@v1
+
+      - name: buf breaking (PRs only)
+        if: github.event_name == 'pull_request'
+        uses: bufbuild/buf-breaking-action@v1
+        with:
+          against: "https://github.com/${{ github.repository }}.git#branch=${{ github.base_ref }}"
