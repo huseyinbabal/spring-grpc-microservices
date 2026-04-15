@@ -1,5 +1,6 @@
 package com.cargo.shipment.api;
 
+import com.cargo.common.grpc.error.IllegalTransitionException;
 import com.cargo.common.grpc.error.NotFoundException;
 import com.cargo.common.v1.PageResult;
 import com.cargo.shipment.domain.ShipmentService;
@@ -11,6 +12,8 @@ import com.cargo.shipment.v1.GetShipmentResponse;
 import com.cargo.shipment.v1.ListShipmentsRequest;
 import com.cargo.shipment.v1.ListShipmentsResponse;
 import com.cargo.shipment.v1.ShipmentServiceGrpc;
+import com.cargo.shipment.v1.UpdateShipmentStatusRequest;
+import com.cargo.shipment.v1.UpdateShipmentStatusResponse;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
@@ -26,7 +29,6 @@ import java.util.UUID;
  * <p>Remaining RPCs fall through to the {@code ImplBase} default of
  * {@code UNIMPLEMENTED} until:
  * <ul>
- *   <li>T2.7 — {@code UpdateShipmentStatus}</li>
  *   <li>T2.8 — {@code CancelShipment}</li>
  * </ul>
  */
@@ -119,6 +121,45 @@ public class ShipmentGrpcService extends ShipmentServiceGrpc.ShipmentServiceImpl
         } catch (IllegalArgumentException e) {
             responseObserver.onError(
                     Status.INVALID_ARGUMENT
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        }
+    }
+
+    @Override
+    public void updateShipmentStatus(
+            UpdateShipmentStatusRequest request,
+            StreamObserver<UpdateShipmentStatusResponse> responseObserver) {
+        try {
+            UUID id = parseUuid(request.getId());
+            com.cargo.shipment.domain.ShipmentStatus newStatus =
+                    ShipmentMapper.toDomain(request.getNewStatus());
+            if (newStatus == null) {
+                throw new IllegalArgumentException(
+                        "new_status is required and must be a recognized value");
+            }
+            ShipmentEntity entity = service.updateShipmentStatus(id, newStatus);
+            UpdateShipmentStatusResponse response = UpdateShipmentStatusResponse.newBuilder()
+                    .setShipment(ShipmentMapper.toProto(entity))
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        } catch (NotFoundException e) {
+            responseObserver.onError(
+                    Status.NOT_FOUND
+                            .withDescription(e.getMessage())
+                            .withCause(e)
+                            .asRuntimeException());
+        } catch (IllegalTransitionException e) {
+            responseObserver.onError(
+                    Status.FAILED_PRECONDITION
                             .withDescription(e.getMessage())
                             .withCause(e)
                             .asRuntimeException());

@@ -1,5 +1,6 @@
 package com.cargo.shipment.domain;
 
+import com.cargo.common.grpc.error.IllegalTransitionException;
 import com.cargo.common.grpc.error.NotFoundException;
 import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.persistence.ShipmentRepository;
@@ -98,6 +99,47 @@ public class ShipmentService {
         return repo.findByTrackingCode(trackingCode)
                 .orElseThrow(() -> new NotFoundException(
                         "shipment with tracking_code " + trackingCode + " not found"));
+    }
+
+    /**
+     * Advance a shipment to a new status. Enforces the forward-only
+     * state machine:
+     *
+     * <pre>
+     *   CREATED → IN_TRANSIT → DELIVERED
+     * </pre>
+     *
+     * Cancellation is handled by {@code cancelShipment} and is not
+     * reachable through this method.
+     *
+     * @throws NotFoundException if no shipment with this id exists
+     * @throws IllegalTransitionException if the move is not legal
+     */
+    @Transactional
+    public ShipmentEntity updateShipmentStatus(UUID id, ShipmentStatus newStatus) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("new_status is required");
+        }
+        ShipmentEntity entity = repo.findById(id)
+                .orElseThrow(() -> new NotFoundException("shipment " + id + " not found"));
+        ShipmentStatus current = entity.getStatus();
+        if (!isLegalTransition(current, newStatus)) {
+            throw new IllegalTransitionException(
+                    "illegal transition: " + current + " → " + newStatus);
+        }
+        entity.setStatus(newStatus);
+        return repo.save(entity);
+    }
+
+    private static boolean isLegalTransition(ShipmentStatus from, ShipmentStatus to) {
+        if (from == to) {
+            return false;
+        }
+        return switch (from) {
+            case CREATED -> to == ShipmentStatus.IN_TRANSIT;
+            case IN_TRANSIT -> to == ShipmentStatus.DELIVERED;
+            case DELIVERED, CANCELLED -> false;
+        };
     }
 
     /** Default page size when the client does not supply one. */
