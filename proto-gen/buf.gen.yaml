@@ -1,0 +1,10 @@
+---
+# Maven-driven buf generate template. Called from proto-gen's pom.xml
+# during generate-sources. `buf generate` is invoked from the repo
+# root so `out:` paths are resolved relative to there.
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/java
+    out: proto-gen/target/generated-sources/proto-gen
+  - remote: buf.build/grpc/java
+    out: proto-gen/target/generated-sources/proto-gen

@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: shipment
+  main:
+    # No web layer — this service only speaks gRPC.
+    web-application-type: none
+
+grpc:
+  server:
+    port: 9090
+    # Enable the gRPC reflection service so `grpcurl list` works
+    # during development. Disable in production profiles.
+    reflection-service-enabled: true
