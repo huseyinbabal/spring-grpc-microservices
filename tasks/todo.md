@@ -46,7 +46,7 @@ stop at each checkpoint and confirm before starting the next phase.
 ## Phase 2c — Shipment in the compose stack
 
 - [x] **TY.S1** `shipment: multi-stage Dockerfile (JLink JRE)`
-- [ ] **TY.S2** `ci: shipment image build + push to GHCR`
+- [x] **TY.S2** `ci: shipment image build + push to GHCR`
 - [ ] **TY.S3** `deploy(compose): postgres-shipment + debezium connect`
 - [ ] **TY.S4** `deploy(compose): shipment service`
 - [ ] **CY1 — CHECKPOINT:** shipment runs in compose; `grpcurl CreateShipment` → event on `cargo.shipment.events`
