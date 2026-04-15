@@ -1,0 +1,105 @@
+// Shipment Service — the system of record for the shipment lifecycle.
+syntax = "proto3";
+
+package cargo.shipment.v1;
+
+option java_multiple_files = true;
+option java_package = "com.cargo.shipment.v1";
+
+import "google/protobuf/timestamp.proto";
+import "cargo/common/v1/common.proto";
+
+// Legal states a shipment can be in. Transitions are enforced by the
+// Shipment Service; illegal jumps return FAILED_PRECONDITION.
+enum ShipmentStatus {
+  SHIPMENT_STATUS_UNSPECIFIED = 0;
+  SHIPMENT_STATUS_CREATED = 1;
+  SHIPMENT_STATUS_IN_TRANSIT = 2;
+  SHIPMENT_STATUS_DELIVERED = 3;
+  SHIPMENT_STATUS_CANCELLED = 4;
+}
+
+// The shipment aggregate as returned by the service.
+message Shipment {
+  // Server-assigned UUID.
+  string id = 1;
+  // Human-friendly code, e.g. CT-2026-000123. Unique across all shipments.
+  string tracking_code = 2;
+  cargo.common.v1.Address origin = 3;
+  cargo.common.v1.Address destination = 4;
+  // Carrier handling the delivery (e.g. "DHL", "UPS").
+  string carrier = 5;
+  ShipmentStatus status = 6;
+  double weight_kg = 7;
+  // Estimated time of arrival. Nullable until assigned.
+  google.protobuf.Timestamp eta = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// CreateShipment — register a new shipment, status starts at CREATED.
+message CreateShipmentRequest {
+  cargo.common.v1.Address origin = 1;
+  cargo.common.v1.Address destination = 2;
+  string carrier = 3;
+  double weight_kg = 4;
+}
+
+message CreateShipmentResponse {
+  Shipment shipment = 1;
+}
+
+// GetShipment — look up by server id or by human tracking code.
+message GetShipmentRequest {
+  oneof key {
+    string id = 1;
+    string tracking_code = 2;
+  }
+}
+
+message GetShipmentResponse {
+  Shipment shipment = 1;
+}
+
+// ListShipments — cursor-paginated, filterable by status and carrier.
+message ListShipmentsRequest {
+  // Optional. Restrict results to this status.
+  ShipmentStatus status_filter = 1;
+  // Optional. Restrict results to this carrier.
+  string carrier_filter = 2;
+  cargo.common.v1.Page page = 3;
+}
+
+message ListShipmentsResponse {
+  repeated Shipment shipments = 1;
+  cargo.common.v1.PageResult page = 2;
+}
+
+// UpdateShipmentStatus — transition between legal states. Illegal jumps
+// return FAILED_PRECONDITION.
+message UpdateShipmentStatusRequest {
+  string id = 1;
+  ShipmentStatus new_status = 2;
+}
+
+message UpdateShipmentStatusResponse {
+  Shipment shipment = 1;
+}
+
+// CancelShipment — only allowed from CREATED or IN_TRANSIT.
+message CancelShipmentRequest {
+  string id = 1;
+}
+
+message CancelShipmentResponse {
+  Shipment shipment = 1;
+}
+
+// System of record for shipments.
+service ShipmentService {
+  rpc CreateShipment(CreateShipmentRequest) returns (CreateShipmentResponse);
+  rpc GetShipment(GetShipmentRequest) returns (GetShipmentResponse);
+  rpc ListShipments(ListShipmentsRequest) returns (ListShipmentsResponse);
+  rpc UpdateShipmentStatus(UpdateShipmentStatusRequest) returns (UpdateShipmentStatusResponse);
+  rpc CancelShipment(CancelShipmentRequest) returns (CancelShipmentResponse);
+}
