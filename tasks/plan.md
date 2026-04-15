@@ -1,15 +1,16 @@
 # Implementation Plan — Cargo Tracking Platform
 
 Derived from [`SPEC.md`](../SPEC.md). Organizes the work into vertical,
-PR-sized tasks. **Deployment target: Hetzner k3s + Flux only** —
-provisioned by [`hetzner-k3s`](https://github.com/vitobotta/hetzner-k3s).
+PR-sized tasks. **Deployment target: Docker Compose** — the whole stack
+(infra + three services) runs locally via a single `compose.yaml`.
+Kubernetes / Flux / Helm are explicitly deferred until after v0.1.0.
 
 Each task is a thin end-to-end slice (proto → domain → persistence → API →
-test, or infra → chart → release) and is intended to land as **one PR**.
+test, or infra → compose → smoke test) and is intended to land as **one PR**.
 
 **Rule of thumb:** a task is done when a PR merges that (a) changes
-behavior visible to a test or reconciled resource and (b) ships that
-verification green.
+behavior visible to a test or a compose-level smoke check and (b) ships
+that verification green.
 
 ---
 
@@ -17,11 +18,9 @@ verification green.
 
 ```
 ┌──────────────────────────────┐
-│ Phase 0 — Foundations        │   CI pipeline, Hetzner k3s cluster,
-│  TX.1   CI (buf lint)        │   Flux bootstrap, shared infra
-│  TY.1   hetzner-k3s cluster  │
-│  TY.2   Flux cluster root    │
-│  TY.3   cert-mgr + ingress   │
+│ Phase 0 — Foundations        │   CI pipeline + compose scaffold
+│  TX.1   CI (buf lint)        │   with the shared Kafka broker
+│  TY.1   compose stack        │
 └──────────────┬───────────────┘
                │  CF1
                ▼
@@ -44,9 +43,9 @@ verification green.
                │  C3
                ▼
 ┌──────────────────────────────┐
-│ Phase 2c — Shipment deploy   │   Dockerfile, GHCR workflow,
-│  TY.S1..TY.S7                │   Helm chart, Strimzi, Debezium,
-│                              │   Postgres, Flux HelmRelease
+│ Phase 2c — Shipment in stack │   Dockerfile, GHCR image, compose
+│  TY.S1..TY.S4                │   entry (postgres-shipment,
+│                              │   debezium connect, shipment svc)
 └──────────────┬───────────────┘
                │  CY1
                ▼
@@ -56,9 +55,9 @@ verification green.
 ┌──────────────┐ ┌──────────────────────┐
 │ Phase 3a–3c  │ │ Phase 4 — Notifier   │
 │ Tracking     │ │  T7.1..T7.3          │
-│ T4..T6       │ │  then TY.N1..TY.N4   │
+│ T4..T6       │ │  then TY.N1..TY.N3   │
 │ then         │ │       ↓              │
-│ TY.T1..TY.T5 │ │       CY3            │
+│ TY.T1..TY.T3 │ │       CY3            │
 │     ↓        │ └──────────┬───────────┘
 │     CY2      │            │
 └──────┬───────┘            │
@@ -67,14 +66,14 @@ verification green.
                   │
                   ▼
       ┌──────────────────────┐
-      │ Phase 5 — Edge+auth  │  Keycloak, Envoy gRPC-Web,
-      │  T8.1..T8.4          │  cert-manager mTLS
+      │ Phase 5 — Edge+auth  │  Keycloak + Envoy gRPC-Web
+      │  T8.1..T8.3          │  (compose services)
       └──────────┬───────────┘
                  │  CY4
                  ▼
       ┌──────────────────────┐
-      │ Phase 6 — Ship       │  make demo (against k3s),
-      │  T9.1..T9.3          │  JSON logs, Prometheus
+      │ Phase 6 — Ship       │  make demo, JSON logs,
+      │  T9.1..T9.3          │  Prometheus + Grafana
       └──────────┬───────────┘
                  │  C9 → v0.1.0
                  ▼
@@ -93,33 +92,31 @@ are independent and can run as two PR streams.
   and lands a passing test or a reconciled resource.
 - **One PR per task.** Keep diffs reviewable. Rename if a task starts
   sprawling.
-- **Testcontainers for logic, Hetzner k3s for topology.** Inner-loop IT
-  uses Testcontainers; the Hetzner cluster + Flux is only for "does this
-  actually deploy" verification at checkpoints CY1–CY4. Tear the cluster
-  down between sessions to keep spend in check.
+- **Testcontainers for logic, compose for topology.** Inner-loop IT
+  uses Testcontainers; `compose.yaml` is the "whole stack wired up"
+  verification target at checkpoints CY1–CY4. Compose is cheap — run
+  it locally whenever you want, no cluster to keep alive.
 - **No generated artifacts in git.** `gen/`, `target/`, built images —
-  all gitignored. GHCR is the image store.
-- **Image tags by commit SHA.** Flux `HelmRelease` values pin to
-  `:<sha>` bumped by PR. (Optional: add `ImageUpdateAutomation` later.)
+  all gitignored. GHCR is the image store for tagged releases; compose
+  can also `build:` locally from each service's Dockerfile.
+- **Kubernetes deferred.** Helm charts, Flux, cert-manager, Kafka
+  operators — none of that until after v0.1.0.
 
 ---
 
-## Phase 0 — Foundations (CI + Hetzner k3s + Flux)
+## Phase 0 — Foundations (CI + compose scaffold)
 
-Goal: `main` is protected by CI, and `hetzner-k3s create --config
-deploy/hetzner/cluster.yaml` produces a reconciling 3-node Hetzner k3s
-cluster with Flux + cert-manager + ingress installed.
+Goal: `main` is protected by CI, and `docker compose up -d` brings up
+the shared `cargo-net` network plus Kafka so later phases can layer
+their services onto the same stack.
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
 | **TX.1** | `ci: add buf lint + breaking GitHub Actions workflow` | `.github/workflows/ci.yml` runs `buf lint` and `buf breaking --against .git#branch=main` on every PR | PR from a branch with a proto break fails CI |
-| **TY.1** | `deploy(hetzner): hetzner-k3s cluster config (3 nodes)` | `deploy/hetzner/cluster.yaml` defines 1 × cpx22 master + 2 × cpx32 workers in `fsn1`; reads `HCLOUD_TOKEN` from env; kubeconfig path gitignored | `hetzner-k3s create --config deploy/hetzner/cluster.yaml` passes config validation and provisions the cluster; `kubectl --kubeconfig deploy/hetzner/kubeconfig get nodes` shows 3 Ready |
-| **TY.2** | `deploy(flux): Flux bootstrap + cluster root kustomization` | `flux bootstrap github` installs Flux on the k3s cluster and commits `deploy/flux/clusters/local/flux-system/` + empty `infra/` + `apps/` Kustomizations | `flux get kustomizations` shows `infra` + `apps` Ready |
-| **TY.3** | `deploy(flux): cert-manager + ingress-nginx HelmReleases` | HelmReleases under `deploy/flux/infra/` for cert-manager and ingress-nginx (k3s default Traefik disabled via `disable_traefik`) | `kubectl get pods -n cert-manager` and `-n ingress-nginx` all Ready |
+| **TY.1** | `deploy(compose): stack scaffold with Kafka` | `compose.yaml` at repo root declares the `cargo` network, named volumes, and a single-node Kafka (KRaft) broker with healthcheck | `docker compose -f compose.yaml config --quiet` clean; `docker compose up -d kafka` then `kafka-topics.sh --list` via `docker compose exec` succeeds |
 
-**Checkpoint CF1:** `hetzner-k3s create` provisions the 3-node cluster,
-Flux bootstrap commits `flux-system/`, `flux get kustomizations` shows
-everything Ready, `kubectl get pods -A` is clean.
+**Checkpoint CF1:** `docker compose up -d` starts the stack and `docker
+compose ps` shows Kafka healthy. CI is green on main.
 
 ---
 
@@ -173,26 +170,22 @@ publishes `cargo.shipment.events` under Testcontainers IT.
 
 ---
 
-## Phase 2c — Shipment deployment to Hetzner k3s (deployment track)
+## Phase 2c — Shipment in the compose stack
 
-Goal: Shipment + its infra (Postgres, Kafka, Debezium) reconcile under
-Flux in the Hetzner k3s cluster; GH Actions publishes an image to GHCR
-on every main commit.
+Goal: Shipment service + its dedicated Postgres + Kafka Connect
+(Debezium) land in `compose.yaml`; GH Actions publishes a
+`cargo-shipment` image to GHCR on every main commit.
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
 | **TY.S1** | `shipment: multi-stage Dockerfile (JLink JRE)` | `docker build` succeeds, image < 250 MB | Local build |
 | **TY.S2** | `ci: shipment image build + push to GHCR` | Workflow pushes `ghcr.io/<owner>/cargo-shipment:<sha>` on main + `:<tag>` on release tags | Inspect package in GHCR |
-| **TY.S3** | `deploy(helm): shipment chart` | `deploy/helm/shipment/` with Deployment, Service, ConfigMap, values for DB + Kafka endpoints | `helm template` + `helm lint` clean |
-| **TY.S4** | `deploy(flux): Postgres HelmRelease for shipment` | Bitnami Postgres HelmRelease in `deploy/flux/infra/postgres-shipment.yaml`, isolated namespace | Reconciled, `psql` port-forward works |
-| **TY.S5** | `deploy(flux): Strimzi Kafka operator + cluster` | Strimzi operator HelmRelease + `Kafka` CR under `deploy/flux/infra/kafka/` | Kafka cluster Ready |
-| **TY.S6** | `deploy(flux): Kafka Connect + Debezium connector` | Kafka Connect HelmRelease with Debezium plugin; `KafkaConnector` CR pointing at shipment outbox | `connector/status` = RUNNING |
-| **TY.S7** | `deploy(flux): shipment HelmRelease` | `deploy/flux/apps/shipment.yaml` HelmRelease pinned to `:<sha>`, reads DB creds from secret | `flux reconcile helmrelease shipment` Ready |
+| **TY.S3** | `deploy(compose): postgres-shipment + debezium connect` | Adds `postgres-shipment` (wal_level=logical) + `connect` (Debezium image) services to `compose.yaml` with the outbox connector auto-registered via init container or script | `docker compose up -d` + `curl localhost:8083/connectors/shipment-outbox/status` = RUNNING |
+| **TY.S4** | `deploy(compose): shipment service` | Adds `shipment` service to `compose.yaml` pulling the GHCR image (or building locally via `build:`), wired to `postgres-shipment` + `kafka` | `docker compose up -d` + `grpcurl -plaintext localhost:9090 …/CreateShipment` works, event lands on `cargo.shipment.events` |
 
-**Checkpoint CY1:** `hetzner-k3s create` + merging a PR → the Hetzner
-k3s cluster has Shipment + deps Ready. `kubectl port-forward svc/shipment
-9090` + `grpcurl CreateShipment` + `kafka-console-consumer` on
-`cargo.shipment.events` shows the event.
+**Checkpoint CY1:** shipment + deps run green in compose. `grpcurl
+CreateShipment` + `kafka-console-consumer` on `cargo.shipment.events`
+shows the event.
 
 ---
 
@@ -234,22 +227,20 @@ k3s cluster has Shipment + deps Ready. `kubectl port-forward svc/shipment
 
 ---
 
-## Phase 3d — Tracking deployment to Hetzner k3s
+## Phase 3d — Tracking in the compose stack
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
 | **TY.T1** | `tracking: multi-stage Dockerfile` | Image builds, < 250 MB | Local |
 | **TY.T2** | `ci: tracking image build + push to GHCR` | `ghcr.io/<owner>/cargo-tracking:<sha>` on main | GHCR |
-| **TY.T3** | `deploy(helm): tracking chart` | `helm lint` clean | Template |
-| **TY.T4** | `deploy(flux): Postgres HelmRelease for tracking` | Isolated `postgres-tracking` | Reconciled |
-| **TY.T5** | `deploy(flux): tracking HelmRelease` | `apps/tracking.yaml`, wired to Kafka from CY1 | Reconciled |
+| **TY.T3** | `deploy(compose): postgres-tracking + tracking service` | Adds `postgres-tracking` + `tracking` services to `compose.yaml`, wired to shared `kafka` | `docker compose up -d`; streaming a live `StreamTracking` via `grpcurl` returns events |
 
-**Checkpoint CY2:** tracking pod consumes `cargo.shipment.events` from
-the in-cluster Kafka; port-forward `StreamTracking` returns events.
+**Checkpoint CY2:** `tracking` pod consumes `cargo.shipment.events`
+from the in-stack Kafka; `StreamTracking` returns events over gRPC.
 
 ---
 
-## Phase 4 — Notification Service (Slice 7)
+## Phase 4 — Notification Service (Slice 7) *(parallel with Phase 3 after CY1)*
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
@@ -261,17 +252,16 @@ the in-cluster Kafka; port-forward `StreamTracking` returns events.
 
 ---
 
-## Phase 4b — Notification deployment to Hetzner k3s
+## Phase 4b — Notification in the compose stack
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
 | **TY.N1** | `notification: Dockerfile` | Image builds | Local |
-| **TY.N2** | `ci: notification image build + push to GHCR` | `cargo-notification:<sha>` on main | GHCR |
-| **TY.N3** | `deploy(helm): notification chart` | Stateless, no DB; values reference shared Kafka | `helm lint` |
-| **TY.N4** | `deploy(flux): notification HelmRelease` | `apps/notification.yaml` | Reconciled |
+| **TY.N2** | `ci: notification image build + push to GHCR` | `ghcr.io/<owner>/cargo-notification:<sha>` on main | GHCR |
+| **TY.N3** | `deploy(compose): notification service` | Adds `notification` service to `compose.yaml` (stateless, no DB), wired to `kafka` | `docker compose logs notification` shows NOTIFY lines after Shipment RPCs |
 
-**Checkpoint CY3:** `kubectl logs -l app=notification` shows NOTIFY
-lines triggered by Shipment RPCs in the k3s cluster.
+**Checkpoint CY3:** `docker compose logs -f notification` shows NOTIFY
+lines for events emitted by the Shipment service running in the same stack.
 
 ---
 
@@ -279,26 +269,26 @@ lines triggered by Shipment RPCs in the k3s cluster.
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
-| **T8.1** | `deploy(flux): Keycloak HelmRelease + cargo realm import` | Bitnami Keycloak chart, realm ConfigMap mounted, `cargo-client` confidential client + test user | `curl .../.well-known/openid-configuration` |
-| **T8.2** | `deploy(flux): Envoy HelmRelease + gRPC-Web filter` | Envoy Deployment + Ingress exposing gRPC-Web with TLS termination, routes to shipment + tracking | Browser grpc-web client hits `GetShipment` |
-| **T8.3** | `deploy(flux): cert-manager CA issuer + service Certificates` | `ClusterIssuer` + per-service `Certificate` resources; mTLS secrets mounted into pods | `openssl s_client` shows client cert presented |
-| **T8.4** | `services: enable JWT requirement across all three` | Interceptor from T1.2 active under the k3s profile; anonymous call → `UNAUTHENTICATED` | Smoke test w/ + w/o token |
+| **T8.1** | `deploy(compose): Keycloak + cargo realm import` | `keycloak` service with a mounted realm export creating `cargo-client` + test user | `curl localhost:8080/realms/cargo/.well-known/openid-configuration` |
+| **T8.2** | `deploy(compose): Envoy + gRPC-Web filter` | `envoy` service fronting shipment + tracking with gRPC-Web + TLS termination | Browser grpc-web client hits `GetShipment` through Envoy |
+| **T8.3** | `services: enable JWT requirement across all three` | Interceptor from T1.2 enforced in the stack profile; anonymous call → `UNAUTHENTICATED` | Smoke test w/ + w/o token |
 
-**Checkpoint CY4:** edge + auth + mTLS all verified in the k3s cluster.
-(Replaces old C8.)
+**Checkpoint CY4:** edge + auth verified via Envoy → Keycloak → services
+running in compose.
 
 ---
 
-## Phase 6 — E2E demo + observability (Slice 9)
+## Phase 6 — Ship (Slice 9)
 
 | Task | PR title | Acceptance | Verify |
 |---|---|---|---|
-| **T9.1** | `scripts: make demo against Hetzner k3s cluster` | Script port-forwards, obtains Keycloak token, creates shipment, pushes 5 tracking events, streams, asserts NOTIFY log | `make demo` exits 0 |
-| **T9.2** | `services: JSON structured logging + shipment_id MDC` | Log lines parseable; MDC present on every request-path line | `kubectl logs` grep |
-| **T9.3** | `deploy(flux): Prometheus + Grafana + ServiceMonitors` | Prometheus scrapes `/actuator/prometheus`; sample dashboard ConfigMap | Grafana shows shipment QPS |
+| **T9.1** | `scripts: make demo against the compose stack` | Script obtains a Keycloak token, calls `CreateShipment`, pushes 5 tracking events, streams, asserts NOTIFY log | `make demo` exits 0 |
+| **T9.2** | `services: JSON structured logging + shipment_id MDC` | Log lines parseable; MDC present on every request-path line | `docker compose logs` grep |
+| **T9.3** | `deploy(compose): Prometheus + Grafana` | Prometheus scrapes `/actuator/prometheus` from all three services; sample Grafana dashboard JSON mounted | Grafana shows shipment QPS |
 
 **Checkpoint C9 (SHIP):** all umbrella AC from SPEC §5 ticked. Tag
-`v0.1.0`. GH Actions release workflow builds tagged images.
+`v0.1.0`. GH Actions release workflow builds tagged images for all
+three services.
 
 ---
 
@@ -309,8 +299,8 @@ lines triggered by Shipment RPCs in the k3s cluster.
   - **Stream B** — Phase 4 (Notification: T7→TY.N*)
 - They rejoin at **CY4** (Phase 5 needs both services deployed).
 - **Track X (CI)** is not a stream — TX.1 is one-shot at Phase 0 and
-  auto-extends as modules are added (T1.1 adds mvn verify, TY.S2 adds
-  per-service image builds).
+  auto-extends as modules are added (T1.1 adds mvn verify, TY.S2/T2/N2
+  add per-service image builds).
 
 ---
 
@@ -328,35 +318,27 @@ column. Keep PRs:
 
 ## Risks
 
-- **Strimzi + Debezium on a 2-worker k3s cluster** — resource-hungry.
-  Mitigation: single broker, single connect worker, request limits
-  tuned for `cpx32` (4 vCPU / 8 GB). Scale up to `cpx41`/`cpx42` if the
-  worker pool saturates.
-- **Hetzner spend** — a forgotten cluster is ~€20/mo. Mitigation:
-  `make cluster-down` at end of day; CI pipeline never touches real
-  infra.
-- **Image pull from GHCR into k3s** — public images pull fine; private
-  images need an imagePullSecret referencing a GHCR PAT. TY.S2 sets
-  image visibility to public by default; revisit for real projects.
-- **Flux reconcile time** — initial reconcile of 6+ HelmReleases is slow.
-  Mitigation: document `flux reconcile --with-source` as the fast path.
-- **Debezium IT flakiness (T3.4)** — slow connector startup. Mitigation:
-  longer timeout + retry on event assertion.
+- **Kafka + Postgres + Connect on a single machine** — the full stack
+  is ~8 containers by Phase 6 and will want 4–6 GB RAM. Mitigation:
+  small memory caps per container, single-broker Kafka, one Connect
+  worker, don't run Prometheus+Grafana until Phase 6.
+- **Debezium on compose** — connector registration races against
+  `postgres-shipment` being ready. Mitigation: init script that retries
+  connector POST against `/connectors` until the Connect worker is up.
 - **Streaming back-pressure (T5.3)** — naive multicast can block.
   Mitigation: `onBackpressureBuffer` with cap + drop-oldest.
 - **Keycloak realm import** — brittle across versions. Mitigation: pin
-  Keycloak image tag in HelmRelease values.
-- **mTLS cert wiring (T8.3)** — easy to mis-mount. Mitigation: one
-  cert-manager `ClusterIssuer`, per-service `Certificate`, consistent
-  secret names.
+  Keycloak image tag in compose.
 
 ---
 
 ## Deferred / Optional (not in v0.1.0)
 
-- Flux `ImageUpdateAutomation` — for training, bump image tags in PRs
-  manually. Add later if it saves time.
-- Cosign image signing — nice for prod, not blocking.
+- Kubernetes, Helm charts, Flux, cert-manager, Hetzner k3s — the whole
+  k8s deployment story is pushed past v0.1.0
+- mTLS between services (keeping plaintext intra-stack for v0.1.0;
+  JWT + Envoy TLS at the edge is enough)
+- Cosign image signing
 - Multi-tenant data isolation
 - Real email/SMS/push delivery
 - Production Kafka sizing or HA Postgres

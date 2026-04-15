@@ -8,13 +8,11 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ---
 
-## Phase 0 — Foundations (CI + Hetzner k3s + Flux)
+## Phase 0 — Foundations (CI + compose scaffold)
 
 - [x] **TX.1** `ci: add buf lint + breaking GitHub Actions workflow`
-- [x] **TY.1** `deploy(hetzner): hetzner-k3s cluster config (3 nodes)`
-- [ ] **TY.2** `deploy(flux): Flux bootstrap + cluster root kustomization`
-- [ ] **TY.3** `deploy(flux): cert-manager + ingress-nginx HelmReleases`
-- [ ] **CF1 — CHECKPOINT:** `hetzner-k3s create` → 3-node cluster → `flux get kustomizations` all Ready
+- [x] **TY.1** `deploy(compose): stack scaffold with Kafka`
+- [ ] **CF1 — CHECKPOINT:** `docker compose -f compose.yaml config` clean; `docker compose up -d kafka` healthy
 
 ## Phase 1 — common-grpc (Slice 1)
 
@@ -44,16 +42,13 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T3.4** `shipment: full PG+Kafka+Debezium Testcontainers IT`
 - [ ] **C3 — CHECKPOINT:** events flow under IT
 
-## Phase 2c — Shipment deployment to Hetzner k3s
+## Phase 2c — Shipment in the compose stack
 
 - [ ] **TY.S1** `shipment: multi-stage Dockerfile (JLink JRE)`
 - [ ] **TY.S2** `ci: shipment image build + push to GHCR`
-- [ ] **TY.S3** `deploy(helm): shipment chart`
-- [ ] **TY.S4** `deploy(flux): Postgres HelmRelease for shipment`
-- [ ] **TY.S5** `deploy(flux): Strimzi Kafka operator + cluster`
-- [ ] **TY.S6** `deploy(flux): Kafka Connect + Debezium connector`
-- [ ] **TY.S7** `deploy(flux): shipment HelmRelease`
-- [ ] **CY1 — CHECKPOINT:** shipment + deps reconciled in k3s; grpcurl CreateShipment → event on `cargo.shipment.events`
+- [ ] **TY.S3** `deploy(compose): postgres-shipment + debezium connect`
+- [ ] **TY.S4** `deploy(compose): shipment service`
+- [ ] **CY1 — CHECKPOINT:** shipment runs in compose; `grpcurl CreateShipment` → event on `cargo.shipment.events`
 
 ## Phase 3a — Tracking ingest + RM (Slice 4)
 
@@ -78,14 +73,12 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T6.2** `tracking: sync enrichment fallback in GetTracking`
 - [ ] **C6 — CHECKPOINT:** sync path tested; Tracking feature-complete
 
-## Phase 3d — Tracking deployment to Hetzner k3s
+## Phase 3d — Tracking in the compose stack
 
 - [ ] **TY.T1** `tracking: multi-stage Dockerfile`
 - [ ] **TY.T2** `ci: tracking image build + push to GHCR`
-- [ ] **TY.T3** `deploy(helm): tracking chart`
-- [ ] **TY.T4** `deploy(flux): Postgres HelmRelease for tracking`
-- [ ] **TY.T5** `deploy(flux): tracking HelmRelease`
-- [ ] **CY2 — CHECKPOINT:** tracking consumes shipment events from in-cluster Kafka
+- [ ] **TY.T3** `deploy(compose): postgres-tracking + tracking service`
+- [ ] **CY2 — CHECKPOINT:** tracking consumes shipment events from in-stack Kafka
 
 ## Phase 4 — Notification (Slice 7) *(parallel with Phase 3 after CY1)*
 
@@ -94,25 +87,23 @@ stop at each checkpoint and confirm before starting the next phase.
 - [ ] **T7.3** `notification: StalledCargoDetector scheduled job`
 - [ ] **C7 — CHECKPOINT:** notifications observable under IT
 
-## Phase 4b — Notification deployment to Hetzner k3s
+## Phase 4b — Notification in the compose stack
 
 - [ ] **TY.N1** `notification: Dockerfile`
 - [ ] **TY.N2** `ci: notification image build + push to GHCR`
-- [ ] **TY.N3** `deploy(helm): notification chart`
-- [ ] **TY.N4** `deploy(flux): notification HelmRelease`
-- [ ] **CY3 — CHECKPOINT:** `kubectl logs` on notification pod shows NOTIFY lines from in-cluster shipment events
+- [ ] **TY.N3** `deploy(compose): notification service`
+- [ ] **CY3 — CHECKPOINT:** `docker compose logs notification` shows NOTIFY lines from Shipment events
 
 ## Phase 5 — Edge + security (Slice 8)
 
-- [ ] **T8.1** `deploy(flux): Keycloak HelmRelease + cargo realm import`
-- [ ] **T8.2** `deploy(flux): Envoy HelmRelease + gRPC-Web filter`
-- [ ] **T8.3** `deploy(flux): cert-manager CA issuer + service Certificates`
-- [ ] **T8.4** `services: enable JWT requirement across all three`
-- [ ] **CY4 — CHECKPOINT:** edge + auth + mTLS verified in the k3s cluster
+- [ ] **T8.1** `deploy(compose): Keycloak + cargo realm import`
+- [ ] **T8.2** `deploy(compose): Envoy + gRPC-Web filter`
+- [ ] **T8.3** `services: enable JWT requirement across all three`
+- [ ] **CY4 — CHECKPOINT:** edge + auth verified through Envoy → Keycloak → services
 
 ## Phase 6 — Ship (Slice 9)
 
-- [ ] **T9.1** `scripts: make demo against Hetzner k3s cluster`
+- [ ] **T9.1** `scripts: make demo against the compose stack`
 - [ ] **T9.2** `services: JSON structured logging + shipment_id MDC`
-- [ ] **T9.3** `deploy(flux): Prometheus + Grafana + ServiceMonitors`
+- [ ] **T9.3** `deploy(compose): Prometheus + Grafana`
 - [ ] **C9 — SHIP:** tag `v0.1.0`, all SPEC §5 criteria ticked
