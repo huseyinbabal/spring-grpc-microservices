@@ -26,7 +26,7 @@ stop at each checkpoint and confirm before starting the next phase.
 ## Phase 2a — Shipment CRUD (Slice 2)
 
 - [x] **T2.1** `proto: commit cargo/common/v1 + cargo/shipment/v1`
-- [ ] **T2.2** `shipment: scaffold Spring Boot module + gRPC starter`
+- [x] **T2.2** `shipment: scaffold Spring Boot module + gRPC starter`
 - [ ] **T2.3** `shipment: Flyway V1 schema + JPA entity + repo`
 - [ ] **T2.4** `shipment: RPC CreateShipment`
 - [ ] **T2.5** `shipment: RPC GetShipment (id + tracking_code oneof)`

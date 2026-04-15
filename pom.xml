@@ -14,6 +14,8 @@
 
     <modules>
         <module>common-grpc</module>
+        <module>proto-gen</module>
+        <module>services/shipment</module>
     </modules>
 
     <properties>
@@ -21,8 +23,15 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.release>21</maven.compiler.release>
 
-        <grpc.version>1.68.1</grpc.version>
-        <protobuf.version>3.25.5</protobuf.version>
+        <spring.boot.version>3.3.5</spring.boot.version>
+        <grpc.spring.starter.version>3.1.0.RELEASE</grpc.spring.starter.version>
+        <!-- Must match what the current buf remote plugins
+             (buf.build/protocolbuffers/java and buf.build/grpc/java)
+             emit. Bumping these means re-running buf generate and
+             committing both in the same PR. -->
+        <grpc.version>1.80.0</grpc.version>
+        <protobuf.version>4.34.1</protobuf.version>
+        <javax.annotation.version>1.3.2</javax.annotation.version>
         <nimbus.jose.jwt.version>9.41.2</nimbus.jose.jwt.version>
         <slf4j.version>2.0.16</slf4j.version>
 
@@ -35,10 +44,19 @@
         <maven.failsafe.plugin.version>3.5.2</maven.failsafe.plugin.version>
         <maven.jar.plugin.version>3.4.2</maven.jar.plugin.version>
         <maven.dependency.plugin.version>3.8.1</maven.dependency.plugin.version>
+        <exec.maven.plugin.version>3.5.0</exec.maven.plugin.version>
+        <build.helper.plugin.version>3.6.0</build.helper.plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring.boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-bom</artifactId>
@@ -47,9 +65,29 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
+                <groupId>net.devh</groupId>
+                <artifactId>grpc-server-spring-boot-starter</artifactId>
+                <version>${grpc.spring.starter.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.cargo</groupId>
+                <artifactId>common-grpc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.cargo</groupId>
+                <artifactId>proto-gen</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.google.protobuf</groupId>
                 <artifactId>protobuf-java</artifactId>
                 <version>${protobuf.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>javax.annotation</groupId>
+                <artifactId>javax.annotation-api</artifactId>
+                <version>${javax.annotation.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.nimbusds</groupId>
@@ -138,6 +176,21 @@
                 <plugin>
                     <artifactId>maven-jar-plugin</artifactId>
                     <version>${maven.jar.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>${exec.maven.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>${build.helper.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring.boot.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
