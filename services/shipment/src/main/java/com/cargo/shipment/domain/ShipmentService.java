@@ -2,9 +2,12 @@ package com.cargo.shipment.domain;
 
 import com.cargo.common.grpc.error.IllegalTransitionException;
 import com.cargo.common.grpc.error.NotFoundException;
+import com.cargo.shipment.outbox.OutboxAppender;
+import com.cargo.shipment.outbox.events.ShipmentCancelledEvent;
+import com.cargo.shipment.outbox.events.ShipmentCreatedEvent;
+import com.cargo.shipment.outbox.events.ShipmentStatusChangedEvent;
 import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.persistence.ShipmentRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,17 +29,19 @@ import java.util.UUID;
 @Service
 public class ShipmentService {
 
+    /** Aggregate-type column value used by the Debezium Outbox Event Router. */
+    static final String AGGREGATE_TYPE = "shipment";
+    static final String EVENT_TYPE_CREATED = "shipment.created";
+    static final String EVENT_TYPE_STATUS_CHANGED = "shipment.status.changed";
+    static final String EVENT_TYPE_CANCELLED = "shipment.cancelled";
+
     private final ShipmentRepository repo;
-    private final Clock clock;
+    private final OutboxAppender outboxAppender;
+    private final Clock clock = Clock.system(ZoneOffset.UTC);
 
-    @Autowired
-    public ShipmentService(ShipmentRepository repo) {
-        this(repo, Clock.system(ZoneOffset.UTC));
-    }
-
-    ShipmentService(ShipmentRepository repo, Clock clock) {
+    public ShipmentService(ShipmentRepository repo, OutboxAppender outboxAppender) {
         this.repo = repo;
-        this.clock = clock;
+        this.outboxAppender = outboxAppender;
     }
 
     /**
@@ -72,7 +77,18 @@ public class ShipmentService {
         entity.setCarrier(carrier);
         entity.setStatus(ShipmentStatus.CREATED);
         entity.setWeightKg(weightKg);
-        return repo.save(entity);
+        ShipmentEntity saved = repo.save(entity);
+        outboxAppender.append(
+                AGGREGATE_TYPE,
+                saved.getId().toString(),
+                EVENT_TYPE_CREATED,
+                new ShipmentCreatedEvent(
+                        saved.getId().toString(),
+                        saved.getTrackingCode(),
+                        saved.getCarrier(),
+                        saved.getStatus().name(),
+                        saved.getCreatedAt()));
+        return saved;
     }
 
     /**
@@ -128,7 +144,18 @@ public class ShipmentService {
                     "illegal transition: " + current + " → " + newStatus);
         }
         entity.setStatus(newStatus);
-        return repo.save(entity);
+        ShipmentEntity saved = repo.save(entity);
+        outboxAppender.append(
+                AGGREGATE_TYPE,
+                saved.getId().toString(),
+                EVENT_TYPE_STATUS_CHANGED,
+                new ShipmentStatusChangedEvent(
+                        saved.getId().toString(),
+                        saved.getTrackingCode(),
+                        current.name(),
+                        newStatus.name(),
+                        saved.getUpdatedAt()));
+        return saved;
     }
 
     /**
@@ -150,7 +177,17 @@ public class ShipmentService {
                     "cannot cancel shipment in status " + current);
         }
         entity.setStatus(ShipmentStatus.CANCELLED);
-        return repo.save(entity);
+        ShipmentEntity saved = repo.save(entity);
+        outboxAppender.append(
+                AGGREGATE_TYPE,
+                saved.getId().toString(),
+                EVENT_TYPE_CANCELLED,
+                new ShipmentCancelledEvent(
+                        saved.getId().toString(),
+                        saved.getTrackingCode(),
+                        current.name(),
+                        saved.getUpdatedAt()));
+        return saved;
     }
 
     private static boolean isLegalTransition(ShipmentStatus from, ShipmentStatus to) {
