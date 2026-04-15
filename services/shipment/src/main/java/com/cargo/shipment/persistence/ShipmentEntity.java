@@ -60,7 +60,7 @@ public class ShipmentEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected ShipmentEntity() {}
+    public ShipmentEntity() {}
 
     @PrePersist
     void onCreate() {
