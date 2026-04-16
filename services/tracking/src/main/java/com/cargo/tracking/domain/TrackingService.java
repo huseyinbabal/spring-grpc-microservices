@@ -1,5 +1,6 @@
 package com.cargo.tracking.domain;
 
+import com.cargo.common.grpc.error.NotFoundException;
 import com.cargo.tracking.persistence.ShipmentReadModelEntity;
 import com.cargo.tracking.persistence.ShipmentReadModelRepository;
 import com.cargo.tracking.persistence.TrackingEventEntity;
@@ -61,5 +62,17 @@ public class TrackingService {
         readModel.save(rm);
 
         return persisted;
+    }
+
+    /**
+     * Returns the current tracking snapshot for {@code shipmentId}.
+     * Throws {@link NotFoundException} (→ gRPC NOT_FOUND via
+     * GrpcExceptionAdvice) if neither a shipment-events projection nor
+     * any tracking ping has been recorded for this shipment yet.
+     */
+    @Transactional(readOnly = true)
+    public ShipmentReadModelEntity getTracking(UUID shipmentId) {
+        return readModel.findById(shipmentId).orElseThrow(() ->
+                new NotFoundException("no tracking data for shipment " + shipmentId));
     }
 }
