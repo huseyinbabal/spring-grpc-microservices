@@ -31,7 +31,11 @@ import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        // Re-enable Kafka auto-config (disabled in test application.yml
+        // to keep non-Kafka ITs from creating stale consumers).
+        "spring.autoconfigure.exclude="
+})
 @Testcontainers
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ShipmentEventsConsumerIT {

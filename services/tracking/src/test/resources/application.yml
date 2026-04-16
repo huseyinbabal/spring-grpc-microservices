@@ -1,9 +1,13 @@
 grpc:
   server:
-    # Mirror services/shipment's test config: disable the TCP gRPC
-    # listener by default so non-grpc ITs don't fight over port 9090
-    # when Testcontainers per-class contexts accumulate in the Spring
-    # TestContext cache. Tests that need an in-process gRPC server
-    # override `grpc.server.in-process-name` in their own
-    # @TestPropertySource.
     port: -1
+
+spring:
+  autoconfigure:
+    # Disable Kafka auto-config by default for tests. This prevents
+    # non-Kafka ITs (ReportLocationIT, GetTrackingIT, etc.) from
+    # spinning up a KafkaConsumer that hammers localhost:9092 and
+    # causes rebalance churn when ShipmentEventsConsumerIT runs its
+    # own Kafka container on a different port. The consumer IT
+    # re-enables auto-config via @TestPropertySource.
+    exclude: org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
