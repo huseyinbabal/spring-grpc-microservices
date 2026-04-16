@@ -56,7 +56,7 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T4.1** `proto: commit cargo/tracking/v1`
 - [x] **T4.2** `tracking: scaffold Spring Boot module`
 - [x] **T4.3** `tracking: Flyway V1 + entities + repos`
-- [ ] **T4.4** `tracking: RPC ReportLocation`
+- [x] **T4.4** `tracking: RPC ReportLocation`
 - [ ] **T4.5** `tracking: RPC GetTracking`
 - [ ] **T4.6** `tracking: ShipmentEventsConsumer (idempotent RM)`
 - [ ] **C4 — CHECKPOINT:** ingest + RM consumer green
