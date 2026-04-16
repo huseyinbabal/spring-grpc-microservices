@@ -10,8 +10,25 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Micrometer observation around each KafkaListener — opens a
+      # CONSUMER span per invocation, links to upstream via W3C
+      # traceparent header when present.
+      observation-enabled: true
 
 grpc:
   server:
     port: 9090
     reflection-service-enabled: true
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  endpoints:
+    web:
+      exposure:
+        exclude: "*"
