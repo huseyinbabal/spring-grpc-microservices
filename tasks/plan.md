@@ -310,6 +310,56 @@ live logs from all services via Loki. No code changes in any service.
 
 ---
 
+## Phase 8 — Tracing Stack (Grafana Tempo + OTLP)
+
+Derived from [`SPEC.md §11`](../SPEC.md). Distributed tracing so a
+`CreateShipment` call is visible end-to-end: shipment gRPC span → JDBC
+spans (shipments + outbox insert) → Debezium-delivered Kafka message →
+tracking's `ShipmentEventsConsumer` span → notification consumer span,
+all in a single trace in Grafana Explore → Tempo.
+
+**Architecture:** services export OTLP/gRPC directly to Tempo on
+`:4317`. No OTel Collector (training repo — simplest tooling). No Java
+agent — Micrometer Tracing + `opentelemetry-exporter-otlp` via Maven.
+
+**Dependency graph:**
+
+```
+    T11.1 (tempo + grafana datasource)        ← infra only
+        │
+        ▼
+    T11.2 (parent pom deps + shipment OTLP)   ← proof of concept
+        │
+        ├─────────────┬────────────────┐
+        ▼             ▼                ▼
+    T11.3         T11.4               T11.5
+    (tracking)   (notification)   (log-to-trace correlation)
+        │             │                │
+        └─────────────┴────────────────┘
+                      ▼
+                   C11 — SHIP
+```
+
+T11.3 and T11.4 are parallelizable after T11.2 lands. T11.5 only needs
+T11.2 to be useful, but is most valuable after all three services
+emit traces.
+
+| Task | PR title | Acceptance | Verify |
+|---|---|---|---|
+| **T11.1** | `deploy(compose): Grafana Tempo + OTLP ingest` | Adds `tempo` service to `compose.yaml` (ports 3200 / 4317 / 4318), `deploy/tempo/tempo-config.yaml` with OTLP receivers + local filesystem storage, `tempo-data` named volume, Grafana `tempo.yaml` datasource provisioning. Tempo healthcheck wired so dependent services wait for `service_healthy`. | `docker compose up -d tempo grafana` → `curl -s localhost:3200/ready` returns 200 → Grafana Explore lists "Tempo" as a datasource (empty — no traces yet). |
+| **T11.2** | `observability: tracing deps + shipment OTLP export` | Parent `pom.xml` `<dependencyManagement>` pins `micrometer-tracing-bridge-otel`, `opentelemetry-exporter-otlp`, and `datasource-micrometer-spring-boot` with explicit versions compatible with Spring Boot 3.3.5. `services/shipment/pom.xml` adds them as compile deps. `services/shipment/src/main/resources/application.yml` adds `management.tracing.sampling.probability=1.0` + `management.otlp.tracing.endpoint`. `compose.yaml` shipment service gets `OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317` + `depends_on: tempo: service_healthy`. | `docker compose up -d --build shipment` then `grpcurl … CreateShipment` → Grafana → Explore → Tempo → search `service.name=shipment` returns a trace with ≥ 3 spans: gRPC server, JDBC insert (shipments), JDBC insert (outbox). |
+| **T11.3** | `tracking: OTLP export w/ gRPC client + Kafka consumer spans` | `services/tracking/pom.xml` adds the three tracing deps. `application.yml` adds the `management.tracing` + `management.otlp.tracing` blocks and `spring.kafka.listener.observation-enabled: true`. `compose.yaml` tracking service gets the OTLP env var + `depends_on: tempo`. `ShipmentClient` channel is observation-enabled (Micrometer `GrpcObservationClientInterceptor`). | After a shipment is created, the trace in Tempo now extends: Debezium-sourced Kafka message propagates W3C `traceparent`; tracking's `ShipmentEventsConsumer` span appears as a child of the originating trace. Separately, calling `GetTracking` on a missing RM triggers a `ShipmentClient.GetShipment` child span inside the tracking server span. |
+| **T11.4** | `notification: OTLP export w/ Kafka consumer spans` | `services/notification/pom.xml` adds tracing deps. `application.yml` adds tracing blocks + `spring.kafka.listener.observation-enabled: true`. `compose.yaml` notification service gets the OTLP env var + `depends_on: tempo`. | After `CreateShipment` in the running stack, the same trace shown in T11.3 now additionally contains a `notification` service span for the `ShipmentEventsListener` that logs the NOTIFY line — linked via Kafka header propagation. |
+| **T11.5** | `observability: log-to-trace correlation (trace_id in logs + Loki derivedFields)` | All three services: `logback-spring.xml` (or inline `logging.pattern.console` in `application.yml`) replaces the pattern to include `[%X{traceId:-}/%X{spanId:-}]`. `deploy/grafana/provisioning/datasources/loki.yaml` adds a `derivedFields` rule that parses `traceId=<hex>` and links to the Tempo datasource. | Open Grafana → Explore → Loki → query `{container_name="cargo-shipment"}` → the log line for a `CreateShipment` call shows a clickable `trace_id` link → clicking opens the trace in Tempo. |
+
+**Checkpoint C11:** Run `make demo` (or equivalent `grpcurl CreateShipment`).
+Open Grafana → Explore → Tempo → search `service.name=shipment` →
+newest trace is a distributed trace spanning shipment + tracking +
+notification services. In the same UI, clicking a log line in Loki
+jumps to that trace.
+
+---
+
 ## Parallelization
 
 - **After CY1**, two PR streams run independently:
@@ -319,6 +369,9 @@ live logs from all services via Loki. No code changes in any service.
 - **Track X (CI)** is not a stream — TX.1 is one-shot at Phase 0 and
   auto-extends as modules are added (T1.1 adds mvn verify, TY.S2/T2/N2
   add per-service image builds).
+- **After T11.2 lands**, Phase 8 splits into three parallel streams:
+  T11.3 (tracking), T11.4 (notification), T11.5 (log correlation).
+  They rejoin at C11.
 
 ---
 
@@ -347,6 +400,28 @@ column. Keep PRs:
   Mitigation: `onBackpressureBuffer` with cap + drop-oldest.
 - **Keycloak realm import** — brittle across versions. Mitigation: pin
   Keycloak image tag in compose.
+- **Spring Boot 3.3.5 + Micrometer + OTel bridge version drift** —
+  `opentelemetry-exporter-otlp` is not in Spring Boot's BOM; picking a
+  version that doesn't match the OTel SDK transitively imported by
+  `micrometer-tracing-bridge-otel` causes `NoSuchMethodError` at
+  startup. Mitigation: pin both in parent pom `<dependencyManagement>`
+  using the coordinates documented in Spring Boot 3.3's tracing
+  reference for the same minor version.
+- **gRPC + Kafka context propagation** — W3C `traceparent` must survive
+  gRPC metadata and Kafka headers. Both are handled automatically by
+  Micrometer Observation API when `spring.kafka.listener.observation-enabled`
+  is on and grpc-spring-boot-starter's observation support is active.
+  Mitigation: the T11.3 / T11.4 acceptance criteria explicitly verify
+  the cross-service link, not just the local spans.
+- **Debezium-forwarded Kafka messages missing `traceparent`** — Debezium
+  outbox router copies headers from the outbox row; by default it does
+  not inject an OTel trace context. Spring Kafka's consumer still opens
+  a new root span when there's no upstream context, so the tracking
+  consumer trace may not link back to the originating `CreateShipment`
+  span. Mitigation documented in T11.3: accept either a linked trace
+  (if the outbox row carried `traceparent`) or a linked root span with
+  `shipment_id` attribute; if linked traces are required, add a follow-up
+  task to write `traceparent` into the outbox row at write time.
 
 ---
 
