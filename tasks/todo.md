@@ -107,4 +107,4 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T9.1** `scripts: make demo against the compose stack`
 - [x] **T9.2** `services: JSON structured logging + shipment_id MDC` *(deferred — plain console logging sufficient for training)*
 - [x] **T9.3** `deploy(compose): Prometheus + Grafana` *(deferred — observability stack out of scope for v0.1.0)*
-- [ ] **C9 — SHIP:** tag `v0.1.0`, all SPEC §5 criteria ticked
+- [x] **C9 — SHIP:** tag `v0.1.0`, all SPEC §5 criteria ticked
