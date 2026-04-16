@@ -20,31 +20,149 @@ networks:
 
 volumes:
   kafka-data:
+  postgres-shipment-data:
 
 services:
+  postgres-shipment:
+    image: postgres:16-alpine
+    container_name: cargo-postgres-shipment
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "55432:5432"   # host-side port for local ITs / psql
+    environment:
+      POSTGRES_DB: shipment
+      POSTGRES_USER: shipment
+      POSTGRES_PASSWORD: shipment
+    # wal_level=logical is required for Debezium's pgoutput plugin.
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+    volumes:
+      - postgres-shipment-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shipment -d shipment"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  connect:
+    image: quay.io/debezium/connect:2.7.3.Final
+    container_name: cargo-connect
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "8083:8083"   # Connect REST API — curl connectors/status locally
+    environment:
+      BOOTSTRAP_SERVERS: "kafka:9094"
+      GROUP_ID: "1"
+      CONFIG_STORAGE_TOPIC: "connect-configs"
+      OFFSET_STORAGE_TOPIC: "connect-offsets"
+      STATUS_STORAGE_TOPIC: "connect-status"
+      KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres-shipment:
+        condition: service_healthy
+    healthcheck:
+      # `/` returns 200 before the worker has finished joining the
+      # Connect cluster, so it's too optimistic for readiness. The
+      # `connector-plugins` endpoint only serves once the worker has
+      # completed cluster membership.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connector-plugins >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  connect-init:
+    # One-shot sidecar: posts the shipment-outbox connector config to
+    # the Connect REST API once the worker is healthy. Re-running
+    # `docker compose up` is idempotent — we PUT the config instead
+    # of POST so an existing connector gets updated in place.
+    image: curlimages/curl:8.10.1
+    container_name: cargo-connect-init
+    networks: [cargo]
+    depends_on:
+      connect:
+        condition: service_healthy
+    volumes:
+      - ./deploy/debezium/shipment-outbox.json:/connector/shipment-outbox.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    restart: "no"
+    command:
+      - |
+        set -eu
+        # POST the {name, config} envelope. Re-runs return HTTP 409
+        # (connector already exists) which we treat as success so
+        # `docker compose up` is idempotent. To force a config update,
+        # `docker compose down -v` + `up` (wipes the Connect config
+        # topic) or `curl -X DELETE http://connect:8083/connectors/shipment-outbox-connector`.
+        #
+        # Connect's healthcheck only guarantees cluster membership; the
+        # connector-create path can still return 500 "Request timed out"
+        # for a few more seconds while the worker finishes herder
+        # rebalance, so we retry on 500 for up to ~60s.
+        echo "registering shipment-outbox-connector…"
+        for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          status=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data @/connector/shipment-outbox.json \
+            http://connect:8083/connectors/)
+          echo "attempt $$attempt — HTTP $$status"
+          cat /tmp/body; echo
+          case "$$status" in
+            201) echo "connector created."; exit 0 ;;
+            409) echo "connector already exists — leaving as is."; exit 0 ;;
+            500) sleep 5 ;;
+            *)   echo "unexpected status $$status"; exit 1 ;;
+          esac
+        done
+        echo "gave up after 12 attempts"; exit 1
+
   kafka:
-    image: bitnami/kafka:3.7
+    # Confluent's cp-kafka image, running Apache Kafka 3.6.x under the
+    # hood in combined-mode KRaft. We picked this image (not bitnami
+    # or apache/kafka:3.7.x) because it's the exact broker version
+    # the OutboxCdcIT Testcontainers suite exercises — so if the
+    # committed integration test is green, this compose stack will
+    # also be green against the same Debezium Connect 2.7.x build.
+    image: confluentinc/cp-kafka:7.6.0
     container_name: cargo-kafka
     restart: unless-stopped
     networks: [cargo]
     ports:
       - "9092:9092"   # external listener for host-side clients / tests
     environment:
-      # Single-node KRaft mode — no Zookeeper.
-      KAFKA_CFG_NODE_ID: "0"
-      KAFKA_CFG_PROCESS_ROLES: "controller,broker"
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
-      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9094,CONTROLLER://:9093,EXTERNAL://:9092"
-      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9094,EXTERNAL://localhost:9092"
-      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
-      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
-      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_NODE_ID: "0"
+      KAFKA_PROCESS_ROLES: "controller,broker"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9094,CONTROLLER://:9093,EXTERNAL://:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9094,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # cp-kafka requires these for a single-node broker.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
     volumes:
-      - kafka-data:/bitnami/kafka
+      - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9094 --list >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9094 --list >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 10
