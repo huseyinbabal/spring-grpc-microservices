@@ -226,8 +226,11 @@ services:
     networks: [cargo]
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318/v1/traces"
     depends_on:
       kafka:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
 
   # ── Data ───────────────────────────────────────────────────────────
