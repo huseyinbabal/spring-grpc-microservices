@@ -111,6 +111,6 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 7 — Logging Stack (Loki + Grafana)
 
-- [ ] **T10.1** `deploy(compose): Loki + Promtail + Grafana logging stack`
-- [ ] **T10.2** `deploy(grafana): provisioned Loki datasource + dashboard`
-- [ ] **C10 — CHECKPOINT:** Grafana at `:3001` shows live logs from all services via Loki
+- [x] **T10.1** `deploy(compose): Loki + Promtail + Grafana logging stack`
+- [x] **T10.2** `deploy(grafana): provisioned Loki datasource + dashboard`
+- [x] **C10 — CHECKPOINT:** Grafana at `:3001` shows live logs from all services via Loki
