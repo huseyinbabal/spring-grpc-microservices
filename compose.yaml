@@ -92,11 +92,10 @@ services:
       - envoy
 
   shipment:
-    # Defaults to the GHCR image pushed by the `image-shipment`
-    # workflow. Override with `SHIPMENT_IMAGE=cargo-shipment:local
-    # docker compose up` to run a locally-built image from
-    # `services/shipment/Dockerfile`.
-    image: ${SHIPMENT_IMAGE:-ghcr.io/huseyinbabal/cargo-shipment:latest}
+    build:
+      context: .
+      dockerfile: services/shipment/Dockerfile
+    image: cargo-shipment:local
     container_name: cargo-shipment
     restart: unless-stopped
     networks: [cargo]
@@ -113,7 +112,10 @@ services:
         condition: service_healthy
 
   tracking:
-    image: ${TRACKING_IMAGE:-ghcr.io/huseyinbabal/cargo-tracking:latest}
+    build:
+      context: .
+      dockerfile: services/tracking/Dockerfile
+    image: cargo-tracking:local
     container_name: cargo-tracking
     restart: unless-stopped
     networks: [cargo]
@@ -260,7 +262,10 @@ services:
         echo "gave up after 12 attempts"; exit 1
 
   notification:
-    image: ${NOTIFICATION_IMAGE:-ghcr.io/huseyinbabal/cargo-notification:latest}
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    image: cargo-notification:local
     container_name: cargo-notification
     restart: unless-stopped
     networks: [cargo]
