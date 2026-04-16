@@ -5,6 +5,7 @@ import com.cargo.tracking.persistence.ShipmentReadModelEntity;
 import com.cargo.tracking.persistence.ShipmentReadModelRepository;
 import com.cargo.tracking.persistence.TrackingEventEntity;
 import com.cargo.tracking.persistence.TrackingEventRepository;
+import com.cargo.tracking.stream.TrackingEventBus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,12 +17,15 @@ public class TrackingService {
 
     private final TrackingEventRepository events;
     private final ShipmentReadModelRepository readModel;
+    private final TrackingEventBus bus;
 
     public TrackingService(
             TrackingEventRepository events,
-            ShipmentReadModelRepository readModel) {
+            ShipmentReadModelRepository readModel,
+            TrackingEventBus bus) {
         this.events = events;
         this.readModel = readModel;
+        this.bus = bus;
     }
 
     /**
@@ -61,6 +65,11 @@ public class TrackingService {
         }
         readModel.save(rm);
 
+        // Fan the new event out to any live StreamTracking
+        // subscribers for this shipment. Bus is JVM-local, publish
+        // is non-blocking.
+        bus.publish(persisted);
+
         return persisted;
     }
 
@@ -74,6 +83,15 @@ public class TrackingService {
     public ShipmentReadModelEntity getTracking(UUID shipmentId) {
         return readModel.findById(shipmentId).orElseThrow(() ->
                 new NotFoundException("no tracking data for shipment " + shipmentId));
+    }
+
+    /**
+     * Exposes the internal event bus so the gRPC streaming adapter
+     * (T5.2 StreamTracking) can subscribe to live event fan-out
+     * without the adapter needing its own dependency on the bus.
+     */
+    public TrackingEventBus bus() {
+        return bus;
     }
 
     /**
@@ -126,5 +144,12 @@ public class TrackingService {
             rm.setCarrier(carrier);
         }
         readModel.save(rm);
+
+        // Tear down any live StreamTracking subscribers the moment
+        // the shipment reaches a terminal state.
+        if (newStatus == ShipmentStatus.DELIVERED
+                || newStatus == ShipmentStatus.CANCELLED) {
+            bus.close(shipmentId);
+        }
     }
 }
