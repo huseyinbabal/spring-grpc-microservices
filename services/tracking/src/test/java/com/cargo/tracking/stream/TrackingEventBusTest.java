@@ -84,6 +84,26 @@ class TrackingEventBusTest {
     }
 
     @Test
+    void full_buffer_drops_oldest_events_and_bumps_dropped_count() throws Exception {
+        UUID shipmentId = UUID.randomUUID();
+        TrackingEventBus.Subscription sub = bus.subscribe(shipmentId);
+
+        int overfill = TrackingEventBus.BUFFER_SIZE + 5;
+        for (int i = 0; i < overfill; i++) {
+            bus.publish(newEvent(shipmentId, i));
+        }
+
+        // The 5 oldest events should have been dropped; the remaining
+        // BUFFER_SIZE events are the latest 5..overfill-1.
+        for (int expected = 5; expected < overfill; expected++) {
+            TrackingEventEntity ev = sub.take();
+            assertThat(ev).isNotNull();
+            assertThat(ev.getLat()).isEqualTo((double) expected);
+        }
+        assertThat(sub.droppedCount()).isEqualTo(5);
+    }
+
+    @Test
     void unsubscribe_stops_further_delivery() throws Exception {
         UUID shipmentId = UUID.randomUUID();
         TrackingEventBus.Subscription sub = bus.subscribe(shipmentId);
