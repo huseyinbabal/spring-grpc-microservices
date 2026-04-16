@@ -192,6 +192,17 @@ services:
         done
         echo "gave up after 12 attempts"; exit 1
 
+  notification:
+    image: ${NOTIFICATION_IMAGE:-ghcr.io/huseyinbabal/cargo-notification:latest}
+    container_name: cargo-notification
+    restart: unless-stopped
+    networks: [cargo]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   kafka:
     # Confluent's cp-kafka image, running Apache Kafka 3.6.x under the
     # hood in combined-mode KRaft. We picked this image (not bitnami

@@ -1,0 +1,7 @@
+grpc:
+  server:
+    port: -1
+
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration

@@ -83,17 +83,17 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 4 — Notification (Slice 7) *(parallel with Phase 3 after CY1)*
 
-- [ ] **T7.1** `notification: scaffold module + HealthCheck RPC`
-- [ ] **T7.2** `notification: ShipmentEventsListener → NOTIFY log`
-- [ ] **T7.3** `notification: StalledCargoDetector scheduled job`
-- [ ] **C7 — CHECKPOINT:** notifications observable under IT
+- [x] **T7.1** `notification: scaffold module + HealthCheck RPC`
+- [x] **T7.2** `notification: ShipmentEventsListener → NOTIFY log`
+- [x] **T7.3** `notification: StalledCargoDetector scheduled job`
+- [x] **C7 — CHECKPOINT:** notifications observable under IT
 
 ## Phase 4b — Notification in the compose stack
 
-- [ ] **TY.N1** `notification: Dockerfile`
-- [ ] **TY.N2** `ci: notification image build + push to GHCR`
-- [ ] **TY.N3** `deploy(compose): notification service`
-- [ ] **CY3 — CHECKPOINT:** `docker compose logs notification` shows NOTIFY lines from Shipment events
+- [x] **TY.N1** `notification: Dockerfile`
+- [x] **TY.N2** `ci: notification image build + push to GHCR`
+- [x] **TY.N3** `deploy(compose): notification service`
+- [x] **CY3 — CHECKPOINT:** `docker compose logs notification` shows NOTIFY lines from Shipment events
 
 ## Phase 5 — Edge + security (Slice 8)
 
