@@ -204,10 +204,13 @@ services:
       TRACKING_DB_PASSWORD: "tracking"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
       SHIPMENT_GRPC_TARGET: "shipment:9090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318/v1/traces"
     depends_on:
       postgres-tracking:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
 
   # Stateless event reactor. Consumes cargo.shipment.events and logs
