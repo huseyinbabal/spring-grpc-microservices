@@ -7,3 +7,15 @@ datasources:
     url: http://loki:3100
     isDefault: true
     editable: false
+    jsonData:
+      # Spring Boot 3.3 + Micrometer Tracing writes `[traceId-spanId]`
+      # into the console log pattern out of the box. This rule parses
+      # that bracket and surfaces a "trace_id" field on every matching
+      # log line that deep-links into the Tempo datasource — click the
+      # link in Explore to open the trace.
+      derivedFields:
+        - name: trace_id
+          datasourceUid: tempo
+          matcherRegex: "\\[([a-f0-9]{32})-[a-f0-9]{16}\\]"
+          url: "$${__value.raw}"
+          urlDisplayLabel: "View trace"
