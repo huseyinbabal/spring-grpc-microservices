@@ -425,3 +425,172 @@ Coverage target: 80% line on `domain/` packages. No target on generated code.
 - Publish to Kafka from inside a request path (use outbox)
 - Skip `buf lint` or `buf breaking` to land a proto change
 - Commit generated code from `gen/` or `target/`
+
+---
+
+## 11. Observability — Tracing
+
+### 11.1 Objective
+
+Distributed tracing across the three gRPC services so a single user action
+(e.g. `CreateShipment` → outbox → Debezium → Kafka → Tracking consumer →
+StreamTracking fanout) is visible as one end-to-end trace. Grafana Tempo
+is the backend; Grafana is the UI; OTLP is the wire format.
+
+**Goal:** click a log line in Grafana Loki, jump to its trace in Tempo,
+see spans for every service the request touched.
+
+### 11.2 Architecture
+
+```
+ ┌──────────────┐   OTLP/gRPC :4317   ┌────────┐
+ │ shipment     ├────────────────────▶│        │
+ │ tracking     │                     │ tempo  │◀── grafana (datasource)
+ │ notification │                     │        │
+ └──────────────┘                     └────────┘
+```
+
+- **No OTel Collector.** Services export OTLP directly to Tempo. Tempo's
+  native OTLP receiver is the ingest path. Keeps the hop count minimal.
+- **Sampling:** 100%. Training repo — volume is low.
+- **Storage:** Tempo local filesystem backend on a named Docker volume
+  (`tempo-data`), same pattern as Loki.
+- **Auth:** none (local dev).
+
+### 11.3 Scope
+
+**In scope:**
+- Spring Boot services (shipment, tracking, notification)
+- Auto-instrumented spans: gRPC server + client, JDBC, Kafka
+  producer + consumer, scheduled jobs
+- Trace context propagation: W3C `traceparent` over gRPC metadata and
+  Kafka message headers
+- Grafana: Tempo datasource, Loki ↔ Tempo log-to-trace correlation via
+  `trace_id` derived field
+
+**Out of scope:**
+- Web frontend (Nuxt) browser tracing
+- Debezium Kafka Connect worker tracing
+- Envoy tracing (edge proxy stays untraced)
+- Metrics (Prometheus) and RED dashboards — separate spec
+- OpenTelemetry Collector (direct-to-Tempo instead)
+- Custom spans beyond what auto-instrumentation provides
+
+### 11.4 Implementation
+
+**Dependency stack (per Spring Boot service):**
+
+```xml
+<dependency>
+  <groupId>io.micrometer</groupId>
+  <artifactId>micrometer-tracing-bridge-otel</artifactId>
+</dependency>
+<dependency>
+  <groupId>io.opentelemetry</groupId>
+  <artifactId>opentelemetry-exporter-otlp</artifactId>
+</dependency>
+<!-- Auto-instrumentation the Spring Boot starters don't already cover -->
+<dependency>
+  <groupId>net.ttddyy.observation</groupId>
+  <artifactId>datasource-micrometer-spring-boot</artifactId>
+</dependency>
+```
+
+Versions pinned in the parent `pom.xml` `<dependencyManagement>`. No OTel
+Java agent — pure dependency-based instrumentation via Spring Boot 3's
+Micrometer Observation API.
+
+**Per-service `application.yml`:**
+
+```yaml
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4317}
+      transport: grpc
+
+spring:
+  application:
+    name: shipment    # or tracking / notification
+```
+
+**Log correlation:** Logback pattern includes `%mdc{traceId}` and
+`%mdc{spanId}` so every log line carries the active trace. Loki's
+Grafana datasource derives the `trace_id` link automatically.
+
+### 11.5 Compose Changes
+
+Add `tempo` service to `compose.yaml`:
+
+```yaml
+tempo:
+  image: grafana/tempo:2.5.0
+  container_name: cargo-tempo
+  ports:
+    - "3200:3200"   # Tempo HTTP API
+    - "4317:4317"   # OTLP gRPC ingest
+    - "4318:4318"   # OTLP HTTP ingest
+  volumes:
+    - ./deploy/tempo/tempo-config.yaml:/etc/tempo/tempo.yaml:ro
+    - tempo-data:/var/tempo
+  command: ["-config.file=/etc/tempo/tempo.yaml"]
+```
+
+Add to every app service:
+
+```yaml
+environment:
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
+depends_on:
+  tempo:
+    condition: service_healthy
+```
+
+Add Tempo datasource to `deploy/grafana/provisioning/datasources/`.
+Extend the Loki datasource with a `derivedFields` rule that turns
+`traceID=<hex>` log matches into links to Tempo.
+
+### 11.6 Project Structure Additions
+
+```
+deploy/
+  tempo/
+    tempo-config.yaml            # local filesystem backend, OTLP receivers
+  grafana/
+    provisioning/
+      datasources/
+        tempo.yaml               # new
+        loki.yaml                # edited: derivedFields → Tempo link
+```
+
+### 11.7 Acceptance Criteria
+
+- [ ] `docker compose up -d` brings Tempo healthy alongside Loki/Grafana
+- [ ] `curl http://localhost:3200/ready` returns 200
+- [ ] Calling `CreateShipment` produces a trace visible in Grafana Explore → Tempo
+- [ ] That trace contains spans for: gRPC server, JDBC insert (shipments + outbox)
+- [ ] The Tracking consumer of `cargo.shipment.events` produces a linked span under the same trace (propagated via Kafka headers)
+- [ ] A log line in Loki for that request shows a clickable `trace_id` link that opens the trace in Tempo
+- [ ] Sampling probability 1.0 — no dropped traces in local dev
+- [ ] No OTel Java agent on the classpath; instrumentation is dependency-only
+
+### 11.8 Boundaries (Tracing-specific)
+
+**Always**
+- Export OTLP directly to Tempo; no Collector hop in training scope
+- Use Micrometer Observation API for any custom instrumentation, not raw OTel SDK
+- Set `spring.application.name` — it becomes the `service.name` resource attribute
+
+**Ask first**
+- Adding an OTel Collector (introduces a new infra service)
+- Sampling below 100% (training repo default is full-fidelity)
+- Adding metrics or profiling pipelines (separate spec)
+- Instrumenting the web frontend or Envoy (scope expansion)
+
+**Never**
+- Ship the OTel Java agent (`-javaagent:opentelemetry-javaagent.jar`) — dependency-based only
+- Hard-code the OTLP endpoint — it's always `OTEL_EXPORTER_OTLP_ENDPOINT`
+- Add custom spans for things auto-instrumentation already covers (gRPC, JDBC, Kafka)
