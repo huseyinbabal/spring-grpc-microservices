@@ -6,11 +6,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * In-process pub/sub that fans a newly-recorded tracking event out to
@@ -29,11 +29,23 @@ import java.util.concurrent.LinkedBlockingQueue;
  * signalling ({@link #close}) lets the streaming RPC tear down all
  * subscribers when the shipment reaches DELIVERED or CANCELLED.
  *
- * <p>T5.1 uses an unbounded {@link LinkedBlockingQueue}; T5.3 will
- * swap it for a drop-oldest bounded buffer.
+ * <p>Each subscription buffers up to {@value #BUFFER_SIZE} events.
+ * If a slow consumer falls behind, the bus drops the OLDEST
+ * buffered event to make room for the new one — a new live position
+ * is more useful than a stale one, which is the right trade-off for
+ * real-time tracking. A dropped-count is bumped on the subscription
+ * so observers can emit metrics later.
  */
 @Component
 public class TrackingEventBus {
+
+    /**
+     * Per-subscription bounded buffer size. 128 comfortably holds a
+     * few seconds of backlog at the simulated-client rate (~10
+     * events/s) without buffering unbounded memory for stuck
+     * subscribers.
+     */
+    public static final int BUFFER_SIZE = 128;
 
     private static final Logger log = LoggerFactory.getLogger(TrackingEventBus.class);
 
@@ -98,18 +110,39 @@ public class TrackingEventBus {
         private static final TrackingEventEntity POISON = new TrackingEventEntity();
 
         private final UUID shipmentId;
-        private final BlockingQueue<TrackingEventEntity> queue = new LinkedBlockingQueue<>();
+        private final BlockingQueue<TrackingEventEntity> queue =
+                new ArrayBlockingQueue<>(BUFFER_SIZE);
+        private long dropped = 0;
 
         private Subscription(UUID shipmentId) {
             this.shipmentId = shipmentId;
         }
 
-        void offer(TrackingEventEntity event) {
-            queue.offer(event);
+        /**
+         * Drop-oldest enqueue: when the bounded buffer is full, the
+         * oldest unread event is discarded so the new one always
+         * lands. Keeping the caller non-blocking is critical because
+         * the publish path runs inside the ReportLocation RPC thread
+         * — we never want a slow streaming client to backpressure a
+         * writer.
+         */
+        synchronized void offer(TrackingEventEntity event) {
+            while (!queue.offer(event)) {
+                if (queue.poll() != null) {
+                    dropped++;
+                }
+            }
         }
 
         void markClosed() {
-            queue.offer(POISON);
+            // Best-effort — if the buffer is full, evict to make
+            // room for the poison so blocked takers unblock promptly.
+            while (!queue.offer(POISON)) {
+                if (queue.poll() == null) {
+                    break;
+                }
+                dropped++;
+            }
         }
 
         /**
@@ -119,7 +152,7 @@ public class TrackingEventBus {
          * NOT affect sibling subscribers for the same shipment.
          */
         public void cancel() {
-            queue.offer(POISON);
+            markClosed();
         }
 
         /**
@@ -134,6 +167,11 @@ public class TrackingEventBus {
 
         public UUID shipmentId() {
             return shipmentId;
+        }
+
+        /** How many events this subscription dropped under backpressure. */
+        public long droppedCount() {
+            return dropped;
         }
     }
 }
