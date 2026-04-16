@@ -97,12 +97,22 @@ public class TrackingService {
             ShipmentStatus newStatus,
             String trackingCode,
             String carrier) {
-        ShipmentReadModelEntity rm = readModel.findById(shipmentId).orElseGet(() ->
-                new ShipmentReadModelEntity(shipmentId, trackingCode, carrier, newStatus));
+        ShipmentReadModelEntity rm = readModel.findById(shipmentId).orElse(null);
+        if (rm == null) {
+            // First event we've ever seen for this shipment — insert
+            // fresh. It's fine for the very first event to land
+            // directly in a terminal state (e.g. a shipment.cancelled
+            // event for a shipment whose CREATED projection hasn't
+            // arrived yet).
+            ShipmentReadModelEntity fresh = new ShipmentReadModelEntity(
+                    shipmentId, trackingCode, carrier, newStatus);
+            readModel.save(fresh);
+            return;
+        }
 
-        // Sticky terminals: once DELIVERED or CANCELLED, ignore further
-        // status updates so a replayed CREATED/IN_TRANSIT event can't
-        // rewind the read model.
+        // Sticky terminals: once an existing row reaches DELIVERED or
+        // CANCELLED, ignore further status updates so a replayed
+        // CREATED/IN_TRANSIT event can't rewind the projection.
         if (rm.getStatus() == ShipmentStatus.DELIVERED
                 || rm.getStatus() == ShipmentStatus.CANCELLED) {
             return;
