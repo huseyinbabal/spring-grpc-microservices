@@ -31,3 +31,7 @@ grpc:
   server:
     port: 9090
     reflection-service-enabled: true
+
+cargo:
+  tracking:
+    shipment-target: ${SHIPMENT_GRPC_TARGET:shipment:9090}

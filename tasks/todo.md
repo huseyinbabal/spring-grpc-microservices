@@ -70,9 +70,9 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 3c — Sync enrichment (Slice 6)
 
-- [ ] **T6.1** `tracking: ShipmentClient (plaintext intra-compose)`
-- [ ] **T6.2** `tracking: sync enrichment fallback in GetTracking`
-- [ ] **C6 — CHECKPOINT:** sync path tested; Tracking feature-complete
+- [x] **T6.1** `tracking: ShipmentClient (plaintext intra-compose)`
+- [x] **T6.2** `tracking: sync enrichment fallback in GetTracking`
+- [x] **C6 — CHECKPOINT:** sync path tested; Tracking feature-complete
 
 ## Phase 3d — Tracking in the compose stack
 

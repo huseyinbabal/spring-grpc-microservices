@@ -1,31 +1,42 @@
 package com.cargo.tracking.domain;
 
 import com.cargo.common.grpc.error.NotFoundException;
+import com.cargo.shipment.v1.GetShipmentResponse;
+import com.cargo.shipment.v1.Shipment;
+import com.cargo.tracking.client.ShipmentClient;
 import com.cargo.tracking.persistence.ShipmentReadModelEntity;
 import com.cargo.tracking.persistence.ShipmentReadModelRepository;
 import com.cargo.tracking.persistence.TrackingEventEntity;
 import com.cargo.tracking.persistence.TrackingEventRepository;
 import com.cargo.tracking.stream.TrackingEventBus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class TrackingService {
 
+    private static final Logger log = LoggerFactory.getLogger(TrackingService.class);
+
     private final TrackingEventRepository events;
     private final ShipmentReadModelRepository readModel;
     private final TrackingEventBus bus;
+    private final ShipmentClient shipmentClient;
 
     public TrackingService(
             TrackingEventRepository events,
             ShipmentReadModelRepository readModel,
-            TrackingEventBus bus) {
+            TrackingEventBus bus,
+            ShipmentClient shipmentClient) {
         this.events = events;
         this.readModel = readModel;
         this.bus = bus;
+        this.shipmentClient = shipmentClient;
     }
 
     /**
@@ -75,14 +86,51 @@ public class TrackingService {
 
     /**
      * Returns the current tracking snapshot for {@code shipmentId}.
-     * Throws {@link NotFoundException} (→ gRPC NOT_FOUND via
-     * GrpcExceptionAdvice) if neither a shipment-events projection nor
-     * any tracking ping has been recorded for this shipment yet.
+     *
+     * <p>Cold-start fallback: if the read model has no row yet
+     * (e.g. GetTracking is called before the shipment event has been
+     * consumed from {@code cargo.shipment.events}), the service
+     * synchronously asks Shipment via {@link ShipmentClient}. Success
+     * populates an in-memory projection — nothing is written to the
+     * DB because the event consumer will do that asynchronously. If
+     * Shipment also doesn't know the shipment, we throw
+     * {@link NotFoundException} so the caller gets NOT_FOUND instead
+     * of hanging.
      */
     @Transactional(readOnly = true)
     public ShipmentReadModelEntity getTracking(UUID shipmentId) {
-        return readModel.findById(shipmentId).orElseThrow(() ->
-                new NotFoundException("no tracking data for shipment " + shipmentId));
+        Optional<ShipmentReadModelEntity> cached = readModel.findById(shipmentId);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+
+        log.debug("read model miss for {} — falling back to Shipment RPC", shipmentId);
+        Optional<GetShipmentResponse> upstream =
+                shipmentClient.findShipmentById(shipmentId.toString());
+        if (upstream.isEmpty() || !upstream.get().hasShipment()) {
+            throw new NotFoundException("no tracking data for shipment " + shipmentId);
+        }
+
+        // Build a transient projection from the upstream shipment. The
+        // Kafka consumer will land the real row shortly and future
+        // lookups will hit the cache.
+        Shipment shipment = upstream.get().getShipment();
+        ShipmentReadModelEntity transientRm = new ShipmentReadModelEntity(
+                shipmentId,
+                shipment.getTrackingCode(),
+                shipment.getCarrier(),
+                mapProtoStatus(shipment.getStatus()));
+        return transientRm;
+    }
+
+    private static ShipmentStatus mapProtoStatus(com.cargo.shipment.v1.ShipmentStatus proto) {
+        return switch (proto) {
+            case SHIPMENT_STATUS_CREATED -> ShipmentStatus.CREATED;
+            case SHIPMENT_STATUS_IN_TRANSIT -> ShipmentStatus.IN_TRANSIT;
+            case SHIPMENT_STATUS_DELIVERED -> ShipmentStatus.DELIVERED;
+            case SHIPMENT_STATUS_CANCELLED -> ShipmentStatus.CANCELLED;
+            default -> ShipmentStatus.CREATED;
+        };
     }
 
     /**
