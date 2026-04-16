@@ -113,6 +113,16 @@ public class TrackingEventBus {
         }
 
         /**
+         * Signals cancellation directly to a single subscription — used
+         * by the streaming RPC on client-cancel to unblock the pump
+         * thread. Unlike {@link TrackingEventBus#close}, this does
+         * NOT affect sibling subscribers for the same shipment.
+         */
+        public void cancel() {
+            queue.offer(POISON);
+        }
+
+        /**
          * Blocks until the next event is available, or returns
          * {@code null} if the subscription has been closed (terminal
          * state) — allowing the caller to complete the gRPC stream.
