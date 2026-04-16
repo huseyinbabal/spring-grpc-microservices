@@ -1,0 +1,72 @@
+// Tracking Service — live geo-location ingest, read model, and
+// server-streaming subscriptions for a single shipment.
+syntax = "proto3";
+
+package cargo.tracking.v1;
+
+option java_multiple_files = true;
+option java_package = "com.cargo.tracking.v1";
+
+import "google/protobuf/timestamp.proto";
+import "cargo/shipment/v1/shipment.proto";
+
+// A single geo-location ping reported for a shipment.
+message TrackingEvent {
+  // Server-assigned UUID for the event.
+  string id = 1;
+  // Shipment this event belongs to (Shipment.id, not tracking_code).
+  string shipment_id = 2;
+  double lat = 3;
+  double lng = 4;
+  // Wall-clock time the ping was recorded at the source device.
+  google.protobuf.Timestamp recorded_at = 5;
+  // Free-form identifier for the producer (driver app, IoT device, test
+  // client). Used for observability only — not part of the aggregate key.
+  string source = 6;
+}
+
+// ReportLocation — push a single tracking ping. Idempotent on event.id
+// so retries (e.g. from the simulated test client) are safe.
+message ReportLocationRequest {
+  TrackingEvent event = 1;
+}
+
+message ReportLocationResponse {
+  // Echoes the persisted event id (server-assigned if the request left
+  // it blank).
+  string id = 1;
+}
+
+// GetTracking — latest snapshot for one shipment, joining the tracking
+// read model with the shipment-status projection maintained from
+// cargo.shipment.events.
+message GetTrackingRequest {
+  string shipment_id = 1;
+}
+
+message GetTrackingResponse {
+  string shipment_id = 1;
+  cargo.shipment.v1.ShipmentStatus status = 2;
+  double last_lat = 3;
+  double last_lng = 4;
+  google.protobuf.Timestamp last_update_at = 5;
+}
+
+// StreamTracking — server-streaming subscription. The server pushes
+// every new TrackingEvent for `shipment_id` and closes the stream when
+// the shipment reaches DELIVERED or CANCELLED (or the client cancels).
+message StreamTrackingRequest {
+  string shipment_id = 1;
+}
+
+// Streaming frame. Wraps TrackingEvent so the response type follows the
+// `*Response` naming convention required by buf's lint preset.
+message StreamTrackingResponse {
+  TrackingEvent event = 1;
+}
+
+service TrackingService {
+  rpc ReportLocation(ReportLocationRequest) returns (ReportLocationResponse);
+  rpc GetTracking(GetTrackingRequest) returns (GetTrackingResponse);
+  rpc StreamTracking(StreamTrackingRequest) returns (stream StreamTrackingResponse);
+}

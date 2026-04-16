@@ -53,7 +53,7 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 3a — Tracking ingest + RM (Slice 4)
 
-- [ ] **T4.1** `proto: commit cargo/tracking/v1`
+- [x] **T4.1** `proto: commit cargo/tracking/v1`
 - [ ] **T4.2** `tracking: scaffold Spring Boot module`
 - [ ] **T4.3** `tracking: Flyway V1 + entities + repos`
 - [ ] **T4.4** `tracking: RPC ReportLocation`
