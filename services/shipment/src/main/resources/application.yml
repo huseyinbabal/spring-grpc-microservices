@@ -27,3 +27,21 @@ grpc:
     # Enable the gRPC reflection service so `grpcurl list` works
     # during development. Disable in production profiles.
     reflection-service-enabled: true
+
+management:
+  tracing:
+    sampling:
+      # 100% sampling — training repo, low volume. Revisit before
+      # shipping to a real environment.
+      probability: 1.0
+  otlp:
+    tracing:
+      # Spring Boot 3.3's OTLP tracing auto-config speaks OTLP/HTTP only
+      # (gRPC transport landed in 3.4). Tempo exposes that on :4318.
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  endpoints:
+    web:
+      exposure:
+        # Actuator pulled in for tracing auto-config; leave web endpoints
+        # closed — this service is gRPC-only (web-application-type: none).
+        exclude: "*"

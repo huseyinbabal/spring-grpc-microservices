@@ -175,10 +175,13 @@ services:
       SHIPMENT_DB_URL: "jdbc:postgresql://postgres-shipment:5432/shipment"
       SHIPMENT_DB_USER: "shipment"
       SHIPMENT_DB_PASSWORD: "shipment"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318/v1/traces"
     depends_on:
       postgres-shipment:
         condition: service_healthy
       kafka:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
 
   # Live geo-location ingest, read model (projected from shipment
