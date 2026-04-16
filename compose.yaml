@@ -23,6 +23,27 @@ volumes:
   postgres-shipment-data:
 
 services:
+  shipment:
+    # Defaults to the GHCR image pushed by the `image-shipment`
+    # workflow. Override with `SHIPMENT_IMAGE=cargo-shipment:local
+    # docker compose up` to run a locally-built image from
+    # `services/shipment/Dockerfile`.
+    image: ${SHIPMENT_IMAGE:-ghcr.io/huseyinbabal/cargo-shipment:latest}
+    container_name: cargo-shipment
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "9090:9090"   # gRPC
+    environment:
+      SHIPMENT_DB_URL: "jdbc:postgresql://postgres-shipment:5432/shipment"
+      SHIPMENT_DB_USER: "shipment"
+      SHIPMENT_DB_PASSWORD: "shipment"
+    depends_on:
+      postgres-shipment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
   postgres-shipment:
     image: postgres:16-alpine
     container_name: cargo-postgres-shipment

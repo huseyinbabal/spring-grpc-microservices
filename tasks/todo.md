@@ -48,8 +48,8 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **TY.S1** `shipment: multi-stage Dockerfile (JLink JRE)`
 - [x] **TY.S2** `ci: shipment image build + push to GHCR`
 - [x] **TY.S3** `deploy(compose): postgres-shipment + debezium connect`
-- [ ] **TY.S4** `deploy(compose): shipment service`
-- [ ] **CY1 — CHECKPOINT:** shipment runs in compose; `grpcurl CreateShipment` → event on `cargo.shipment.events`
+- [x] **TY.S4** `deploy(compose): shipment service`
+- [x] **CY1 — CHECKPOINT:** shipment runs in compose; `grpcurl CreateShipment` → event on `cargo.shipment.events`
 
 ## Phase 3a — Tracking ingest + RM (Slice 4)
 
