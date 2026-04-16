@@ -26,6 +26,11 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Opens a Micrometer observation around each KafkaListener
+      # invocation — extracts W3C traceparent from message headers so
+      # the consumer span links to the producing service's trace.
+      observation-enabled: true
 
 grpc:
   server:
@@ -35,3 +40,15 @@ grpc:
 cargo:
   tracking:
     shipment-target: ${SHIPMENT_GRPC_TARGET:shipment:9090}
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+  endpoints:
+    web:
+      exposure:
+        exclude: "*"
