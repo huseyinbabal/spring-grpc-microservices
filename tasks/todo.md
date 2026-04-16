@@ -119,7 +119,7 @@ stop at each checkpoint and confirm before starting the next phase.
 
 - [x] **T11.1** `deploy(compose): Grafana Tempo + OTLP ingest`
 - [x] **T11.2** `observability: tracing deps + shipment OTLP export`
-- [ ] **T11.3** `tracking: OTLP export w/ gRPC client + Kafka consumer spans`  *(parallel with T11.4, T11.5 after T11.2)*
+- [x] **T11.3** `tracking: OTLP export w/ gRPC client + Kafka consumer spans`  *(parallel with T11.4, T11.5 after T11.2)*
 - [ ] **T11.4** `notification: OTLP export w/ Kafka consumer spans`  *(parallel)*
 - [ ] **T11.5** `observability: log-to-trace correlation (trace_id in logs + Loki derivedFields)`  *(parallel)*
 - [ ] **C11 — CHECKPOINT:** `CreateShipment` → distributed trace across shipment + tracking + notification in Tempo; log line in Loki clicks through to the trace
