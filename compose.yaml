@@ -6,7 +6,10 @@
 #   LOGGING:
 #     loki              Log aggregation backend (:3100)
 #     promtail          Scrapes Docker container logs → Loki
-#     grafana           Log dashboard (:3001, admin/admin)
+#     grafana           Log + trace dashboard (:3001, admin/admin)
+#
+#   TRACING:
+#     tempo             Trace backend w/ OTLP ingest (:3200, :4317, :4318)
 #
 #   WEB:
 #     web               Nuxt 3 gRPC-Web frontend (:3000)
@@ -41,6 +44,7 @@ volumes:
   postgres-tracking-data:
   loki-data:
   grafana-data:
+  tempo-data:
 
 services:
 
@@ -83,8 +87,9 @@ services:
       loki:
         condition: service_healthy
 
-  # Log visualization. Loki datasource + "Cargo — Container Logs"
-  # dashboard are pre-provisioned. Anonymous viewer access enabled.
+  # Log + trace visualization. Loki + Tempo datasources and the
+  # "Cargo — Container Logs" dashboard are pre-provisioned. Anonymous
+  # viewer access enabled.
   grafana:
     image: grafana/grafana:11.1.0
     container_name: cargo-grafana
@@ -104,6 +109,34 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+      tempo:
+        condition: service_healthy
+
+  # ── Tracing ────────────────────────────────────────────────────────
+
+  # Distributed trace backend. Ingests OTLP/gRPC on :4317 and OTLP/HTTP
+  # on :4318 directly from the Spring Boot services (no Collector hop).
+  # Query via Grafana's Tempo datasource or curl http://localhost:3200.
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: cargo-tempo
+    restart: unless-stopped
+    networks: [cargo]
+    user: "0"
+    ports:
+      - "3200:3200"   # Tempo HTTP query API
+      - "4317:4317"   # OTLP gRPC ingest
+      - "4318:4318"   # OTLP HTTP ingest
+    volumes:
+      - ./deploy/tempo/tempo-config.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
 
   # ── Web UI ─────────────────────────────────────────────────────────
 
