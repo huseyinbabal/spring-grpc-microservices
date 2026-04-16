@@ -1,16 +1,33 @@
 ---
-# Cargo tracking platform — local/dev deployment stack.
+# Cargo Tracking Platform — local/dev deployment stack.
 #
-# Brings up the shared infrastructure the three Spring Boot services
-# depend on. Per-service Postgres instances and the service containers
-# themselves are added in their own PRs (Phase 2c / 3d / 4b).
+# 13 services, one `make up` (docker compose up -d --build):
 #
-# Usage:
-#   docker compose up -d                 # start stack
-#   docker compose ps                    # see what's running
-#   docker compose logs -f kafka         # tail a service
-#   docker compose down                  # stop + remove containers
-#   docker compose down -v               # also wipe volumes (full reset)
+#   LOGGING:
+#     loki              Log aggregation backend (:3100)
+#     promtail          Scrapes Docker container logs → Loki
+#     grafana           Log dashboard (:3001, admin/admin)
+#
+#   WEB:
+#     web               Nuxt 3 gRPC-Web frontend (:3000)
+#
+#   GRPC SERVICES:
+#     shipment          Shipment Service — CRUD + outbox CDC (:9090)
+#     tracking          Tracking Service — ingest + streaming (:9091)
+#     notification      Notification Service — event listener + stalled detector
+#
+#   DATA:
+#     postgres-shipment Shipment DB (wal_level=logical for Debezium) (:55432)
+#     postgres-tracking Tracking DB (:55433)
+#     kafka             Apache Kafka KRaft single-node broker (:9092)
+#
+#   CDC:
+#     connect           Debezium Kafka Connect worker (:8083)
+#     connect-init      One-shot: registers the outbox connector
+#
+#   EDGE / AUTH:
+#     keycloak          OAuth2 / OIDC provider (:8180, admin/admin)
+#     envoy             gRPC-Web reverse proxy (:8080)
 
 name: cargo
 
@@ -26,6 +43,11 @@ volumes:
   grafana-data:
 
 services:
+
+  # ── Logging ────────────────────────────────────────────────────────
+
+  # Log aggregation backend. Stores logs on local filesystem.
+  # Query via Grafana or curl http://localhost:3100/loki/api/v1/query
   loki:
     image: grafana/loki:3.1.0
     container_name: cargo-loki
@@ -45,6 +67,8 @@ services:
       retries: 20
       start_period: 15s
 
+  # Scrapes Docker container logs via docker_sd_configs and pushes
+  # to Loki. Labels each log stream with container_name + compose_service.
   promtail:
     image: grafana/promtail:3.1.0
     container_name: cargo-promtail
@@ -59,6 +83,8 @@ services:
       loki:
         condition: service_healthy
 
+  # Log visualization. Loki datasource + "Cargo — Container Logs"
+  # dashboard are pre-provisioned. Anonymous viewer access enabled.
   grafana:
     image: grafana/grafana:11.1.0
     container_name: cargo-grafana
@@ -79,6 +105,11 @@ services:
       loki:
         condition: service_healthy
 
+  # ── Web UI ─────────────────────────────────────────────────────────
+
+  # Nuxt 3 SPA demonstrating gRPC-Web from the browser using
+  # ConnectRPC + @bufbuild/protobuf generated TypeScript stubs.
+  # Talks to backend services through Envoy (:8080).
   web:
     build:
       context: ./web
@@ -91,6 +122,12 @@ services:
     depends_on:
       - envoy
 
+  # ── gRPC Services ──────────────────────────────────────────────────
+
+  # System of record for the shipment lifecycle. 5 RPCs:
+  # CreateShipment, GetShipment, ListShipments, UpdateShipmentStatus,
+  # CancelShipment. Writes to the transactional outbox table which
+  # Debezium picks up via WAL and routes to cargo.shipment.events.
   shipment:
     build:
       context: .
@@ -100,7 +137,7 @@ services:
     restart: unless-stopped
     networks: [cargo]
     ports:
-      - "9090:9090"   # gRPC
+      - "9090:9090"
     environment:
       SHIPMENT_DB_URL: "jdbc:postgresql://postgres-shipment:5432/shipment"
       SHIPMENT_DB_USER: "shipment"
@@ -111,6 +148,10 @@ services:
       kafka:
         condition: service_healthy
 
+  # Live geo-location ingest, read model (projected from shipment
+  # events), and server-streaming subscriptions. 3 RPCs:
+  # ReportLocation, GetTracking, StreamTracking.
+  # Consumes cargo.shipment.events to maintain its own read model.
   tracking:
     build:
       context: .
@@ -120,7 +161,7 @@ services:
     restart: unless-stopped
     networks: [cargo]
     ports:
-      - "9091:9090"   # gRPC (host 9091 to avoid clashing with shipment)
+      - "9091:9090"
     environment:
       TRACKING_DB_URL: "jdbc:postgresql://postgres-tracking:5432/tracking"
       TRACKING_DB_USER: "tracking"
@@ -133,6 +174,26 @@ services:
       kafka:
         condition: service_healthy
 
+  # Stateless event reactor. Consumes cargo.shipment.events and logs
+  # "NOTIFY shipment.<type>" per event. Runs a scheduled job every
+  # 60s to detect stalled cargo (no update for 5+ minutes).
+  notification:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    image: cargo-notification:local
+    container_name: cargo-notification
+    restart: unless-stopped
+    networks: [cargo]
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # ── Data ───────────────────────────────────────────────────────────
+
+  # Tracking Service's dedicated Postgres instance.
   postgres-tracking:
     image: postgres:16-alpine
     container_name: cargo-postgres-tracking
@@ -153,18 +214,19 @@ services:
       retries: 20
       start_period: 10s
 
+  # Shipment Service's dedicated Postgres. wal_level=logical is
+  # required for Debezium's pgoutput CDC plugin.
   postgres-shipment:
     image: postgres:16-alpine
     container_name: cargo-postgres-shipment
     restart: unless-stopped
     networks: [cargo]
     ports:
-      - "55432:5432"   # host-side port for local ITs / psql
+      - "55432:5432"
     environment:
       POSTGRES_DB: shipment
       POSTGRES_USER: shipment
       POSTGRES_PASSWORD: shipment
-    # wal_level=logical is required for Debezium's pgoutput plugin.
     command:
       - postgres
       - -c
@@ -182,13 +244,51 @@ services:
       retries: 20
       start_period: 10s
 
+  # Single-node KRaft broker. Internal listener kafka:9094 for
+  # inter-service traffic, external listener localhost:9092 for
+  # host-side tools (grpcurl, kafka-console-consumer).
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cargo-kafka
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: "0"
+      KAFKA_PROCESS_ROLES: "controller,broker"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://:9094,CONTROLLER://:9093,EXTERNAL://:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9094,EXTERNAL://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9094 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── CDC ────────────────────────────────────────────────────────────
+
+  # Debezium Kafka Connect worker. Runs the PostgreSQL source
+  # connector with the Outbox Event Router SMT, tailing the
+  # shipment outbox table and routing events to cargo.shipment.events.
   connect:
     image: quay.io/debezium/connect:2.7.3.Final
     container_name: cargo-connect
     restart: unless-stopped
     networks: [cargo]
     ports:
-      - "8083:8083"   # Connect REST API — curl connectors/status locally
+      - "8083:8083"
     environment:
       BOOTSTRAP_SERVERS: "kafka:9094"
       GROUP_ID: "1"
@@ -205,21 +305,15 @@ services:
       postgres-shipment:
         condition: service_healthy
     healthcheck:
-      # `/` returns 200 before the worker has finished joining the
-      # Connect cluster, so it's too optimistic for readiness. The
-      # `connector-plugins` endpoint only serves once the worker has
-      # completed cluster membership.
       test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connector-plugins >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 20s
 
+  # One-shot init container: POSTs the shipment-outbox connector
+  # config to Connect REST API. Idempotent (409 = already exists).
   connect-init:
-    # One-shot sidecar: posts the shipment-outbox connector config to
-    # the Connect REST API once the worker is healthy. Re-running
-    # `docker compose up` is idempotent — we PUT the config instead
-    # of POST so an existing connector gets updated in place.
     image: curlimages/curl:8.10.1
     container_name: cargo-connect-init
     networks: [cargo]
@@ -233,16 +327,6 @@ services:
     command:
       - |
         set -eu
-        # POST the {name, config} envelope. Re-runs return HTTP 409
-        # (connector already exists) which we treat as success so
-        # `docker compose up` is idempotent. To force a config update,
-        # `docker compose down -v` + `up` (wipes the Connect config
-        # topic) or `curl -X DELETE http://connect:8083/connectors/shipment-outbox-connector`.
-        #
-        # Connect's healthcheck only guarantees cluster membership; the
-        # connector-create path can still return 500 "Request timed out"
-        # for a few more seconds while the worker finishes herder
-        # rebalance, so we retry on 500 for up to ~60s.
         echo "registering shipment-outbox-connector…"
         for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
           status=$(curl -sS -o /tmp/body -w "%{http_code}" \
@@ -261,20 +345,10 @@ services:
         done
         echo "gave up after 12 attempts"; exit 1
 
-  notification:
-    build:
-      context: .
-      dockerfile: services/notification/Dockerfile
-    image: cargo-notification:local
-    container_name: cargo-notification
-    restart: unless-stopped
-    networks: [cargo]
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
-    depends_on:
-      kafka:
-        condition: service_healthy
+  # ── Edge / Auth ────────────────────────────────────────────────────
 
+  # OAuth2 / OIDC identity provider. Pre-loaded with "cargo" realm,
+  # "cargo-api" client (secret: cargo-secret), "demo"/"demo" user.
   keycloak:
     image: quay.io/keycloak/keycloak:24.0
     container_name: cargo-keycloak
@@ -295,6 +369,10 @@ services:
       retries: 30
       start_period: 30s
 
+  # gRPC-Web reverse proxy. Translates browser HTTP/1.1 gRPC-Web
+  # requests to HTTP/2 gRPC for the backend services. Routes:
+  #   /cargo.shipment.v1.ShipmentService/* → shipment:9090
+  #   /cargo.tracking.v1.TrackingService/* → tracking:9090
   envoy:
     image: envoyproxy/envoy:v1.30-latest
     container_name: cargo-envoy
@@ -309,40 +387,3 @@ services:
         condition: service_started
       tracking:
         condition: service_started
-
-  kafka:
-    # Confluent's cp-kafka image, running Apache Kafka 3.6.x under the
-    # hood in combined-mode KRaft. We picked this image (not bitnami
-    # or apache/kafka:3.7.x) because it's the exact broker version
-    # the OutboxCdcIT Testcontainers suite exercises — so if the
-    # committed integration test is green, this compose stack will
-    # also be green against the same Debezium Connect 2.7.x build.
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: cargo-kafka
-    restart: unless-stopped
-    networks: [cargo]
-    ports:
-      - "9092:9092"   # external listener for host-side clients / tests
-    environment:
-      KAFKA_NODE_ID: "0"
-      KAFKA_PROCESS_ROLES: "controller,broker"
-      KAFKA_CONTROLLER_QUORUM_VOTERS: "0@kafka:9093"
-      KAFKA_LISTENERS: "PLAINTEXT://:9094,CONTROLLER://:9093,EXTERNAL://:9092"
-      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9094,EXTERNAL://localhost:9092"
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
-      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      # cp-kafka requires these for a single-node broker.
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
-      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
-    volumes:
-      - kafka-data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9094 --list >/dev/null 2>&1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
