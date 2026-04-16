@@ -63,7 +63,7 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 3b — Streaming (Slice 5)
 
-- [ ] **T5.1** `tracking: in-process TrackingEventBus`
+- [x] **T5.1** `tracking: in-process TrackingEventBus`
 - [ ] **T5.2** `tracking: RPC StreamTracking (server streaming)`
 - [ ] **T5.3** `tracking: back-pressure drop-oldest buffer`
 - [ ] **C5 — CHECKPOINT:** streaming end-to-end under IT
