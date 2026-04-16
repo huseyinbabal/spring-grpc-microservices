@@ -295,6 +295,21 @@ three services.
 
 ---
 
+## Phase 7 — Logging Stack (Loki + Grafana)
+
+Centralized log aggregation so all container logs are queryable from
+a single Grafana UI without `docker compose logs` grep gymnastics.
+
+| Task | PR title | Acceptance | Verify |
+|---|---|---|---|
+| **T10.1** | `deploy(compose): Loki + Promtail + Grafana logging stack` | Adds `loki`, `promtail`, `grafana` services to `compose.yaml`. Promtail scrapes Docker container logs via volume mount. Grafana starts with Loki datasource pre-provisioned. | `docker compose up -d` → `http://localhost:3001` → Explore → `{container_name="cargo-shipment"}` returns logs |
+| **T10.2** | `deploy(grafana): provisioned Loki datasource + dashboard` | `deploy/grafana/provisioning/` contains datasource YAML + an optional overview dashboard JSON so Grafana boots ready-to-use without manual config. | Open Grafana → Loki datasource listed → dashboard shows container log volume |
+
+**Checkpoint C10:** `docker compose up -d` → Grafana at `:3001` shows
+live logs from all services via Loki. No code changes in any service.
+
+---
+
 ## Parallelization
 
 - **After CY1**, two PR streams run independently:

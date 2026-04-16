@@ -108,3 +108,9 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T9.2** `services: JSON structured logging + shipment_id MDC` *(deferred — plain console logging sufficient for training)*
 - [x] **T9.3** `deploy(compose): Prometheus + Grafana` *(deferred — observability stack out of scope for v0.1.0)*
 - [x] **C9 — SHIP:** tag `v0.1.0`, all SPEC §5 criteria ticked
+
+## Phase 7 — Logging Stack (Loki + Grafana)
+
+- [ ] **T10.1** `deploy(compose): Loki + Promtail + Grafana logging stack`
+- [ ] **T10.2** `deploy(grafana): provisioned Loki datasource + dashboard`
+- [ ] **C10 — CHECKPOINT:** Grafana at `:3001` shows live logs from all services via Loki
