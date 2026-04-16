@@ -1,6 +1,9 @@
 package com.cargo.tracking.api;
 
+import com.cargo.common.grpc.error.NotFoundException;
+import com.cargo.shipment.v1.ShipmentStatus;
 import com.cargo.tracking.domain.TrackingService;
+import com.cargo.tracking.persistence.ShipmentReadModelEntity;
 import com.cargo.tracking.persistence.TrackingEventEntity;
 import com.cargo.tracking.v1.GetTrackingRequest;
 import com.cargo.tracking.v1.GetTrackingResponse;
@@ -93,9 +96,50 @@ public class TrackingGrpcService extends TrackingServiceGrpc.TrackingServiceImpl
     public void getTracking(
             GetTrackingRequest request,
             StreamObserver<GetTrackingResponse> responseObserver) {
-        responseObserver.onError(Status.UNIMPLEMENTED
-                .withDescription("GetTracking lands in T4.5")
-                .asRuntimeException());
+        UUID shipmentId = parseUuid(request.getShipmentId(), "shipment_id");
+        if (shipmentId == null) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("shipment_id must be a valid UUID")
+                    .asRuntimeException());
+            return;
+        }
+        try {
+            ShipmentReadModelEntity rm = service.getTracking(shipmentId);
+            GetTrackingResponse.Builder response = GetTrackingResponse.newBuilder()
+                    .setShipmentId(rm.getShipmentId().toString())
+                    .setStatus(toProtoStatus(rm.getStatus()));
+            if (rm.getLastLat() != null) {
+                response.setLastLat(rm.getLastLat());
+            }
+            if (rm.getLastLng() != null) {
+                response.setLastLng(rm.getLastLng());
+            }
+            if (rm.getLastUpdateAt() != null) {
+                response.setLastUpdateAt(toTimestamp(rm.getLastUpdateAt()));
+            }
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+        } catch (NotFoundException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage())
+                    .asRuntimeException());
+        }
+    }
+
+    private static ShipmentStatus toProtoStatus(com.cargo.tracking.domain.ShipmentStatus status) {
+        return switch (status) {
+            case CREATED -> ShipmentStatus.SHIPMENT_STATUS_CREATED;
+            case IN_TRANSIT -> ShipmentStatus.SHIPMENT_STATUS_IN_TRANSIT;
+            case DELIVERED -> ShipmentStatus.SHIPMENT_STATUS_DELIVERED;
+            case CANCELLED -> ShipmentStatus.SHIPMENT_STATUS_CANCELLED;
+        };
+    }
+
+    private static Timestamp toTimestamp(Instant instant) {
+        return Timestamp.newBuilder()
+                .setSeconds(instant.getEpochSecond())
+                .setNanos(instant.getNano())
+                .build();
     }
 
     @Override
