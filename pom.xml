@@ -16,6 +16,7 @@
         <module>common-grpc</module>
         <module>proto-gen</module>
         <module>services/shipment</module>
+        <module>services/tracking</module>
     </modules>
 
     <properties>

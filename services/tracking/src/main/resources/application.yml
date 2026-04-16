@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: tracking
+  main:
+    web-application-type: none
+
+  datasource:
+    url: ${TRACKING_DB_URL:jdbc:postgresql://localhost:5432/tracking}
+    username: ${TRACKING_DB_USER:tracking}
+    password: ${TRACKING_DB_PASSWORD:tracking}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+grpc:
+  server:
+    port: 9090
+    reflection-service-enabled: true
