@@ -24,6 +24,18 @@ volumes:
   postgres-tracking-data:
 
 services:
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: cargo-web
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "3000:3000"
+    depends_on:
+      - envoy
+
   shipment:
     # Defaults to the GHCR image pushed by the `image-shipment`
     # workflow. Override with `SHIPMENT_IMAGE=cargo-shipment:local
