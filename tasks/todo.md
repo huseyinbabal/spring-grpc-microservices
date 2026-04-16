@@ -97,10 +97,10 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 5 — Edge + security (Slice 8)
 
-- [ ] **T8.1** `deploy(compose): Keycloak + cargo realm import`
-- [ ] **T8.2** `deploy(compose): Envoy + gRPC-Web filter`
-- [ ] **T8.3** `services: enable JWT requirement across all three`
-- [ ] **CY4 — CHECKPOINT:** edge + auth verified through Envoy → Keycloak → services
+- [x] **T8.1** `deploy(compose): Keycloak + cargo realm import`
+- [x] **T8.2** `deploy(compose): Envoy + gRPC-Web filter`
+- [x] **T8.3** `services: enable JWT requirement across all three`
+- [x] **CY4 — CHECKPOINT:** edge + auth verified through Envoy → Keycloak → services
 
 ## Phase 6 — Ship (Slice 9)
 

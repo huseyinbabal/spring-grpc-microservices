@@ -203,6 +203,41 @@ services:
       kafka:
         condition: service_healthy
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: cargo-keycloak
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "8180:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    command: ["start-dev", "--import-realm"]
+    volumes:
+      - ./deploy/keycloak/cargo-realm.json:/opt/keycloak/data/import/cargo-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q 200"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  envoy:
+    image: envoyproxy/envoy:v1.30-latest
+    container_name: cargo-envoy
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      shipment:
+        condition: service_started
+      tracking:
+        condition: service_started
+
   kafka:
     # Confluent's cp-kafka image, running Apache Kafka 3.6.x under the
     # hood in combined-mode KRaft. We picked this image (not bitnami
