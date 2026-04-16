@@ -76,10 +76,10 @@ stop at each checkpoint and confirm before starting the next phase.
 
 ## Phase 3d — Tracking in the compose stack
 
-- [ ] **TY.T1** `tracking: multi-stage Dockerfile`
-- [ ] **TY.T2** `ci: tracking image build + push to GHCR`
-- [ ] **TY.T3** `deploy(compose): postgres-tracking + tracking service`
-- [ ] **CY2 — CHECKPOINT:** tracking consumes shipment events from in-stack Kafka
+- [x] **TY.T1** `tracking: multi-stage Dockerfile`
+- [x] **TY.T2** `ci: tracking image build + push to GHCR`
+- [x] **TY.T3** `deploy(compose): postgres-tracking + tracking service`
+- [x] **CY2 — CHECKPOINT:** tracking consumes shipment events from in-stack Kafka
 
 ## Phase 4 — Notification (Slice 7) *(parallel with Phase 3 after CY1)*
 

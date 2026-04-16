@@ -21,6 +21,7 @@ networks:
 volumes:
   kafka-data:
   postgres-shipment-data:
+  postgres-tracking-data:
 
 services:
   shipment:
@@ -43,6 +44,45 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+
+  tracking:
+    image: ${TRACKING_IMAGE:-ghcr.io/huseyinbabal/cargo-tracking:latest}
+    container_name: cargo-tracking
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "9091:9090"   # gRPC (host 9091 to avoid clashing with shipment)
+    environment:
+      TRACKING_DB_URL: "jdbc:postgresql://postgres-tracking:5432/tracking"
+      TRACKING_DB_USER: "tracking"
+      TRACKING_DB_PASSWORD: "tracking"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
+      SHIPMENT_GRPC_TARGET: "shipment:9090"
+    depends_on:
+      postgres-tracking:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  postgres-tracking:
+    image: postgres:16-alpine
+    container_name: cargo-postgres-tracking
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "55433:5432"
+    environment:
+      POSTGRES_DB: tracking
+      POSTGRES_USER: tracking
+      POSTGRES_PASSWORD: tracking
+    volumes:
+      - postgres-tracking-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracking -d tracking"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   postgres-shipment:
     image: postgres:16-alpine
