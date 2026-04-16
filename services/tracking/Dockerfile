@@ -25,6 +25,7 @@ COPY common-grpc/pom.xml common-grpc/pom.xml
 COPY proto-gen/pom.xml proto-gen/pom.xml
 COPY services/shipment/pom.xml services/shipment/pom.xml
 COPY services/tracking/pom.xml services/tracking/pom.xml
+COPY services/notification/pom.xml services/notification/pom.xml
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -ntp -pl services/tracking -am dependency:go-offline -DskipTests || true
 
