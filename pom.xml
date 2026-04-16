@@ -17,6 +17,7 @@
         <module>proto-gen</module>
         <module>services/shipment</module>
         <module>services/tracking</module>
+        <module>services/notification</module>
     </modules>
 
     <properties>
