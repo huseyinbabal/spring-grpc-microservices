@@ -4,8 +4,7 @@ plugins:
     out: gen/java
   - remote: buf.build/grpc/java
     out: gen/java
-  - remote: buf.build/grpc/web
-    out: gen/grpc-web
-    opt:
-      - import_style=typescript
-      - mode=grpcwebtext
+  - remote: buf.build/bufbuild/es:v1.10.0
+    out: gen/es
+  - remote: buf.build/connectrpc/es:v1.6.1
+    out: gen/es
