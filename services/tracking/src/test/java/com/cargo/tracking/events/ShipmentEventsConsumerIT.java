@@ -141,7 +141,11 @@ class ShipmentEventsConsumerIT {
     }
 
     private ShipmentReadModelEntity awaitReadModel(UUID shipmentId) {
-        Awaitility.await().atMost(Duration.ofSeconds(15)).untilAsserted(() ->
+        // 30s gives the Kafka consumer enough time to join the group
+        // on slow CI runners — the first rebalance can take 10-15s
+        // with the default session.timeout.ms before partitions are
+        // assigned and the earliest offset is seeked.
+        Awaitility.await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
                 assertThat(readModel.findById(shipmentId)).isPresent());
         return readModel.findById(shipmentId).orElseThrow();
     }
