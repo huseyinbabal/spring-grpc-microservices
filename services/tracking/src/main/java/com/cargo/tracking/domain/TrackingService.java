@@ -75,4 +75,46 @@ public class TrackingService {
         return readModel.findById(shipmentId).orElseThrow(() ->
                 new NotFoundException("no tracking data for shipment " + shipmentId));
     }
+
+    /**
+     * Applies a shipment-side lifecycle event to the read model. Called
+     * by the ShipmentEventsConsumer for each message on
+     * {@code cargo.shipment.events}.
+     *
+     * <p>Idempotent on two axes:
+     * <ol>
+     *   <li>Replays are safe — applying the same event twice is a no-op
+     *       because the status transition is monotonic on the shipment
+     *       lifecycle.</li>
+     *   <li>Terminal states are sticky — once the read model reaches
+     *       {@code DELIVERED} or {@code CANCELLED}, later events cannot
+     *       rewind it.</li>
+     * </ol>
+     */
+    @Transactional
+    public void applyShipmentEvent(
+            UUID shipmentId,
+            ShipmentStatus newStatus,
+            String trackingCode,
+            String carrier) {
+        ShipmentReadModelEntity rm = readModel.findById(shipmentId).orElseGet(() ->
+                new ShipmentReadModelEntity(shipmentId, trackingCode, carrier, newStatus));
+
+        // Sticky terminals: once DELIVERED or CANCELLED, ignore further
+        // status updates so a replayed CREATED/IN_TRANSIT event can't
+        // rewind the read model.
+        if (rm.getStatus() == ShipmentStatus.DELIVERED
+                || rm.getStatus() == ShipmentStatus.CANCELLED) {
+            return;
+        }
+
+        rm.setStatus(newStatus);
+        if (trackingCode != null && !trackingCode.isBlank()) {
+            rm.setTrackingCode(trackingCode);
+        }
+        if (carrier != null && !carrier.isBlank()) {
+            rm.setCarrier(carrier);
+        }
+        readModel.save(rm);
+    }
 }

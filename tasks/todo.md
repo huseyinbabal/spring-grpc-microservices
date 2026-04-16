@@ -58,8 +58,8 @@ stop at each checkpoint and confirm before starting the next phase.
 - [x] **T4.3** `tracking: Flyway V1 + entities + repos`
 - [x] **T4.4** `tracking: RPC ReportLocation`
 - [x] **T4.5** `tracking: RPC GetTracking`
-- [ ] **T4.6** `tracking: ShipmentEventsConsumer (idempotent RM)`
-- [ ] **C4 — CHECKPOINT:** ingest + RM consumer green
+- [x] **T4.6** `tracking: ShipmentEventsConsumer (idempotent RM)`
+- [x] **C4 — CHECKPOINT:** ingest + RM consumer green
 
 ## Phase 3b — Streaming (Slice 5)
 
