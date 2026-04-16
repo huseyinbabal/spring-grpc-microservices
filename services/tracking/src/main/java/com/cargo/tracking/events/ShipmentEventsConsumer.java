@@ -38,9 +38,10 @@ public class ShipmentEventsConsumer {
         this.mapper = mapper;
     }
 
-    @KafkaListener(
-            topics = "${cargo.tracking.shipment-events-topic}",
-            groupId = "${spring.kafka.consumer.group-id}")
+    public static final String TOPIC = "cargo.shipment.events";
+    public static final String GROUP_ID = "tracking-shipment-events";
+
+    @KafkaListener(topics = TOPIC, groupId = GROUP_ID)
     public void onShipmentEvent(
             @Payload String payload,
             @Header(name = "event-type", required = false) byte[] eventTypeHeader,
