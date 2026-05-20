@@ -4,8 +4,14 @@ import com.cargo.shipment.persistence.OutboxEntity;
 import com.cargo.shipment.persistence.OutboxRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.propagation.TextMapSetter;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -17,9 +23,16 @@ import java.util.UUID;
  * <p>This class is intentionally transaction-agnostic — it does not
  * open a new transaction. If called outside an active transaction the
  * insert auto-commits and the same-tx guarantee is lost.
+ *
+ * <p>If a span is active when {@code append()} runs, the W3C
+ * {@code traceparent} of that span is captured into the outbox row.
+ * The Debezium Outbox SMT projects it as a Kafka header so consumers
+ * continue the same trace in Tempo instead of starting a new one.
  */
 @Component
 public class OutboxAppender {
+
+    private static final TextMapSetter<Map<String, String>> SETTER = Map::put;
 
     private final OutboxRepository repo;
     private final ObjectMapper objectMapper;
@@ -49,6 +62,22 @@ public class OutboxAppender {
             throw new IllegalArgumentException(
                     "outbox payload is not JSON-serializable: " + payload, e);
         }
-        repo.save(new OutboxEntity(UUID.randomUUID(), aggregateType, aggregateId, type, json));
+        OutboxEntity entity =
+                new OutboxEntity(UUID.randomUUID(), aggregateType, aggregateId, type, json);
+        entity.setTracingSpanContext(currentTraceparent());
+        repo.save(entity);
+    }
+
+    /**
+     * Inject the current OTel context into a W3C {@code traceparent}
+     * string, or return {@code null} if no valid span is active.
+     */
+    private static String currentTraceparent() {
+        if (!Span.current().getSpanContext().isValid()) {
+            return null;
+        }
+        Map<String, String> carrier = new HashMap<>(2);
+        W3CTraceContextPropagator.getInstance().inject(Context.current(), carrier, SETTER);
+        return carrier.get("traceparent");
     }
 }

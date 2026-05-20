@@ -43,6 +43,15 @@ public class OutboxEntity {
     @Column(nullable = false, columnDefinition = "jsonb")
     private String payload;
 
+    /**
+     * W3C {@code traceparent} of the producing request span, or
+     * {@code null} when the outbox row is written outside an active
+     * span. The Debezium Outbox SMT projects this column as a Kafka
+     * header so consumers continue the same trace.
+     */
+    @Column(name = "tracingspancontext")
+    private String tracingSpanContext;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -77,6 +86,9 @@ public class OutboxEntity {
 
     public String getPayload() { return payload; }
     public void setPayload(String payload) { this.payload = payload; }
+
+    public String getTracingSpanContext() { return tracingSpanContext; }
+    public void setTracingSpanContext(String tracingSpanContext) { this.tracingSpanContext = tracingSpanContext; }
 
     public Instant getCreatedAt() { return createdAt; }
 }

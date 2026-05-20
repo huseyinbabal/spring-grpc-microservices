@@ -99,8 +99,12 @@ class ShipmentOutboxConnectorConfigTest {
     }
 
     @Test
-    void emits_event_type_as_kafka_message_header() {
+    void emits_event_type_and_traceparent_as_kafka_message_headers() {
+        // `type` → `event-type` lets consumers branch on event kind without
+        // parsing the payload. `tracingspancontext` → `traceparent` carries
+        // the W3C trace context captured by OutboxAppender so consumer spans
+        // join the producing request's trace in Tempo.
         assertThat(config.path("transforms.outbox.table.fields.additional.placement").asText())
-                .isEqualTo("type:header:event-type");
+                .isEqualTo("type:header:event-type,tracingspancontext:header:traceparent");
     }
 }

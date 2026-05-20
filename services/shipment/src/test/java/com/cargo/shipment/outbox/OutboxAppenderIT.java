@@ -5,6 +5,11 @@ import com.cargo.shipment.persistence.OutboxEntity;
 import com.cargo.shipment.persistence.OutboxRepository;
 import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.persistence.ShipmentRepository;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -120,6 +125,51 @@ class OutboxAppenderIT {
         assertThat(outboxRepo.count())
                 .as("outbox row must be rolled back with the shipment row")
                 .isZero();
+    }
+
+    @Test
+    void append_captures_current_w3c_traceparent_into_outbox_row() {
+        OpenTelemetrySdk otel = OpenTelemetrySdk.builder()
+                .setTracerProvider(SdkTracerProvider.builder().build())
+                .build();
+        Tracer tracer = otel.getTracer("outbox-appender-it");
+        Span span = tracer.spanBuilder("test-request").startSpan();
+        String expectedTraceId = span.getSpanContext().getTraceId();
+        UUID aggregateId = UUID.randomUUID();
+
+        try (Scope ignored = span.makeCurrent()) {
+            tx.executeWithoutResult(status ->
+                    appender.append(
+                            "shipment",
+                            aggregateId.toString(),
+                            "shipment.created",
+                            Map.of("id", aggregateId.toString())));
+        } finally {
+            span.end();
+        }
+
+        OutboxEntity row = outboxRepo.findAll().get(0);
+        assertThat(row.getTracingSpanContext())
+                .as("W3C traceparent of the active span must be captured")
+                .isNotNull()
+                .startsWith("00-" + expectedTraceId + "-");
+    }
+
+    @Test
+    void append_without_active_span_leaves_traceparent_null() {
+        UUID aggregateId = UUID.randomUUID();
+
+        tx.executeWithoutResult(status ->
+                appender.append(
+                        "shipment",
+                        aggregateId.toString(),
+                        "shipment.created",
+                        Map.of("id", aggregateId.toString())));
+
+        OutboxEntity row = outboxRepo.findAll().get(0);
+        assertThat(row.getTracingSpanContext())
+                .as("no active span → no traceparent column → consumer starts a fresh trace")
+                .isNull();
     }
 
     @Test
