@@ -7,6 +7,7 @@ import com.cargo.shipment.persistence.ShipmentEntity;
 import com.cargo.shipment.persistence.ShipmentRepository;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -159,12 +160,20 @@ class OutboxAppenderIT {
     void append_without_active_span_leaves_traceparent_null() {
         UUID aggregateId = UUID.randomUUID();
 
-        tx.executeWithoutResult(status ->
+        // Pin an empty OTel context for the append() call so no span is
+        // current. Inside a Spring-managed transaction the
+        // datasource-micrometer JDBC connection observation is otherwise
+        // always an active span, so the null branch of
+        // currentTraceparent() would never be exercised.
+        tx.executeWithoutResult(status -> {
+            try (Scope ignored = Context.root().makeCurrent()) {
                 appender.append(
                         "shipment",
                         aggregateId.toString(),
                         "shipment.created",
-                        Map.of("id", aggregateId.toString())));
+                        Map.of("id", aggregateId.toString()));
+            }
+        });
 
         OutboxEntity row = outboxRepo.findAll().get(0);
         assertThat(row.getTracingSpanContext())
