@@ -1,6 +1,6 @@
 package com.cargo.tracking.client;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
@@ -16,6 +16,9 @@ import org.springframework.core.io.ClassPathResource;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -107,11 +110,47 @@ public class ShipmentClientConfig {
     /**
      * Parses {@code grpc/shipment-service-config.json} into the
      * {@code Map} shape gRPC's {@code defaultServiceConfig} expects.
+     *
+     * <p>gRPC's service-config validator only accepts {@link Double} for
+     * JSON numbers and rejects {@code Integer}/{@code Long} outright, so
+     * the tree is walked with every number widened to {@code Double}
+     * (a plain {@code readValue} would decode {@code "maxAttempts": 4}
+     * as an {@code Integer} and fail channel creation).
      */
     private static Map<String, ?> loadServiceConfig(ObjectMapper objectMapper) throws IOException {
         try (InputStream in = new ClassPathResource(SERVICE_CONFIG).getInputStream()) {
-            return objectMapper.readValue(in, new TypeReference<Map<String, Object>>() {});
+            @SuppressWarnings("unchecked")
+            Map<String, ?> config = (Map<String, ?>) toGrpcValue(objectMapper.readTree(in));
+            return config;
         }
+    }
+
+    /**
+     * Converts a Jackson node into the plain Map/List/String/Double/
+     * Boolean/null structure {@code defaultServiceConfig} requires,
+     * widening every JSON number to {@link Double}.
+     */
+    private static Object toGrpcValue(JsonNode node) {
+        if (node.isObject()) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            node.fields().forEachRemaining(e -> map.put(e.getKey(), toGrpcValue(e.getValue())));
+            return map;
+        }
+        if (node.isArray()) {
+            List<Object> list = new ArrayList<>();
+            node.forEach(child -> list.add(toGrpcValue(child)));
+            return list;
+        }
+        if (node.isNumber()) {
+            return node.doubleValue();
+        }
+        if (node.isBoolean()) {
+            return node.booleanValue();
+        }
+        if (node.isNull()) {
+            return null;
+        }
+        return node.asText();
     }
 
     @Bean
