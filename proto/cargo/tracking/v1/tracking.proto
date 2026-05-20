@@ -65,8 +65,52 @@ message StreamTrackingResponse {
   TrackingEvent event = 1;
 }
 
+// BatchReportLocation — client-streaming bulk ingest. A partner device
+// that buffered pings while offline opens one stream and uploads them
+// all; the server persists each and replies once with a summary when
+// the client half-closes. Each frame carries exactly one event.
+message BatchReportLocationRequest {
+  TrackingEvent event = 1;
+}
+
+// Summary returned once, after the client finishes streaming.
+message BatchReportLocationResponse {
+  // Count of events accepted and persisted.
+  int32 accepted = 1;
+  // Count of events rejected (bad shipment_id, malformed payload).
+  int32 rejected = 2;
+  // Server-assigned ids of the accepted events, in receive order.
+  repeated string event_ids = 3;
+}
+
+// LiveTrack — bidirectional streaming. A dashboard opens one long-lived
+// stream and dynamically subscribes/unsubscribes to shipments over it;
+// the server streams matching tracking events back on the same stream.
+message LiveTrackRequest {
+  // Exactly one command per frame.
+  oneof command {
+    // shipment_id (UUID) to start following.
+    string subscribe = 1;
+    // shipment_id (UUID) to stop following.
+    string unsubscribe = 2;
+  }
+}
+
+// One live event pushed for a currently-subscribed shipment.
+message LiveTrackResponse {
+  TrackingEvent event = 1;
+}
+
 service TrackingService {
   rpc ReportLocation(ReportLocationRequest) returns (ReportLocationResponse);
   rpc GetTracking(GetTrackingRequest) returns (GetTrackingResponse);
   rpc StreamTracking(StreamTrackingRequest) returns (stream StreamTrackingResponse);
+
+  // Client-streaming bulk ingest of buffered tracking pings.
+  rpc BatchReportLocation(stream BatchReportLocationRequest)
+      returns (BatchReportLocationResponse);
+
+  // Bidirectional live tracking — subscribe/unsubscribe to many
+  // shipments over a single long-lived stream.
+  rpc LiveTrack(stream LiveTrackRequest) returns (stream LiveTrackResponse);
 }
