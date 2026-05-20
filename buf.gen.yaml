@@ -1,8 +1,12 @@
 version: v2
 plugins:
-  - remote: buf.build/protocolbuffers/java
+  # Pinned so generated code stays reproducible. The protobuf gencode
+  # version MUST stay <= the protobuf-java runtime (${protobuf.version}
+  # in the parent pom) — an unpinned plugin drifts to a newer gencode
+  # and fails at runtime with a Gencode/Runtime mismatch.
+  - remote: buf.build/protocolbuffers/java:v34.1
     out: gen/java
-  - remote: buf.build/grpc/java
+  - remote: buf.build/grpc/java:v1.80.0
     out: gen/java
   - remote: buf.build/bufbuild/es:v1.10.0
     out: gen/es
