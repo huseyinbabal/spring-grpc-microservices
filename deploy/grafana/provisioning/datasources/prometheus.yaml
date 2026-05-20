@@ -1,0 +1,18 @@
+apiVersion: 1
+
+# Backs the Service Map view of the Tempo datasource and any RED
+# dashboards built on Tempo's span metrics. Tempo's metrics-generator
+# remote_writes service-graph + span metrics into this Prometheus.
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    uid: prometheus
+    url: http://prometheus:9090
+    isDefault: false
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo

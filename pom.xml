@@ -54,6 +54,10 @@
              opentelemetry-exporter-* artifacts via opentelemetry-bom; only
              this third-party starter needs an explicit pin. -->
         <datasource.micrometer.version>1.0.6</datasource.micrometer.version>
+        <!-- Client-side fault tolerance: circuit breaker around the
+             Tracking → Shipment gRPC fallback. 2.2.0 targets Spring
+             Boot 3.x; bumping it means re-checking the AOP autoconfig. -->
+        <resilience4j.version>2.2.0</resilience4j.version>
 
         <junit.version>5.11.3</junit.version>
         <assertj.version>3.26.3</assertj.version>
@@ -160,6 +164,13 @@
                 <groupId>net.ttddyy.observation</groupId>
                 <artifactId>datasource-micrometer-spring-boot</artifactId>
                 <version>${datasource.micrometer.version}</version>
+            </dependency>
+            <dependency>
+                <!-- Pulls the resilience4j-spring + AOP autoconfig and the
+                     matching versions of the core resilience4j modules. -->
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-spring-boot3</artifactId>
+                <version>${resilience4j.version}</version>
             </dependency>
 
             <dependency>

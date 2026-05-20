@@ -1,8 +1,11 @@
+server:
+  # Management HTTP port — serves /actuator/* only (Prometheus scrape +
+  # K8s probes). The gRPC HealthCheck API stays on grpc.server.port (9090).
+  port: ${MGMT_PORT:8081}
+
 spring:
   application:
     name: notification
-  main:
-    web-application-type: none
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -20,6 +23,23 @@ grpc:
   server:
     port: 9090
     reflection-service-enabled: true
+    # HTTP/2 keepalive — ping idle clients to detect half-open sockets.
+    keep-alive-time: 30s
+    keep-alive-timeout: 5s
+    permit-keep-alive-time: 20s
+    permit-keep-alive-without-calls: true
+    # Connection draining for zero-downtime rollouts (see shipment/tracking).
+    max-connection-age: 30m
+    max-connection-age-grace: 30s
+    shutdown-grace-period: 30s
+    # Mutual TLS — see shipment/application.yml. Notification only exposes
+    # a HealthCheck RPC, but still requires a client cert for consistency.
+    security:
+      enabled: ${GRPC_TLS_ENABLED:true}
+      certificate-chain: file:${CARGO_TLS_DIR:/etc/cargo/tls}/notification.crt
+      private-key: file:${CARGO_TLS_DIR:/etc/cargo/tls}/notification.key
+      trust-cert-collection: file:${CARGO_TLS_DIR:/etc/cargo/tls}/ca.crt
+      client-auth: REQUIRE
 
 management:
   tracing:
@@ -31,4 +51,10 @@ management:
   endpoints:
     web:
       exposure:
-        exclude: "*"
+        # Exposed on the management HTTP port for Prometheus scraping
+        # and Kubernetes liveness/readiness probes.
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true

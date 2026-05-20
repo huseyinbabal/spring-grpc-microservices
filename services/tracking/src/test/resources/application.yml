@@ -1,6 +1,16 @@
 grpc:
   server:
     port: -1
+    # In-process transport has no wire — mTLS off for tests.
+    security:
+      enabled: false
+
+cargo:
+  tracking:
+    # Tracking -> Shipment client uses a plaintext in-process / loopback
+    # channel in tests; production builds a mutual-TLS Netty channel.
+    tls:
+      enabled: false
 
 spring:
   autoconfigure:

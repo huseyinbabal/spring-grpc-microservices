@@ -45,6 +45,7 @@ volumes:
   loki-data:
   grafana-data:
   tempo-data:
+  prometheus-data:
 
 services:
 
@@ -116,7 +117,9 @@ services:
 
   # Distributed trace backend. Ingests OTLP/gRPC on :4317 and OTLP/HTTP
   # on :4318 directly from the Spring Boot services (no Collector hop).
-  # Query via Grafana's Tempo datasource or curl http://localhost:3200.
+  # Tempo's metrics-generator emits service-graph + span metrics via
+  # remote_write to Prometheus, which Grafana queries to draw the
+  # Service Map / RED panels.
   tempo:
     image: grafana/tempo:2.5.0
     container_name: cargo-tempo
@@ -131,12 +134,36 @@ services:
       - ./deploy/tempo/tempo-config.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
+    depends_on:
+      prometheus:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 20
       start_period: 15s
+
+  # Time-series backend for Tempo's service-graph and span metrics.
+  # `--web.enable-remote-write-receiver` lets Tempo push metrics here
+  # without needing the OTel Collector. Grafana reads the same series
+  # to render the Service Map view of the Tempo datasource.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: cargo-prometheus
+    restart: unless-stopped
+    networks: [cargo]
+    ports:
+      - "9097:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-remote-write-receiver"
+      - "--enable-feature=exemplar-storage"
+      - "--web.enable-lifecycle"
 
   # ── Web UI ─────────────────────────────────────────────────────────
 
@@ -171,6 +198,9 @@ services:
     networks: [cargo]
     ports:
       - "9090:9090"
+      - "8091:8081"   # management HTTP — /actuator/prometheus
+    volumes:
+      - ./deploy/tls:/etc/cargo/tls:ro   # mTLS material (CA + server + client)
     environment:
       SHIPMENT_DB_URL: "jdbc:postgresql://postgres-shipment:5432/shipment"
       SHIPMENT_DB_USER: "shipment"
@@ -198,6 +228,9 @@ services:
     networks: [cargo]
     ports:
       - "9091:9090"
+      - "8092:8081"   # management HTTP — /actuator/prometheus
+    volumes:
+      - ./deploy/tls:/etc/cargo/tls:ro   # mTLS material (CA + server + client)
     environment:
       TRACKING_DB_URL: "jdbc:postgresql://postgres-tracking:5432/tracking"
       TRACKING_DB_USER: "tracking"
@@ -224,6 +257,10 @@ services:
     container_name: cargo-notification
     restart: unless-stopped
     networks: [cargo]
+    ports:
+      - "8093:8081"   # management HTTP — /actuator/prometheus
+    volumes:
+      - ./deploy/tls:/etc/cargo/tls:ro   # mTLS material (CA + server + client)
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318/v1/traces"
@@ -424,6 +461,7 @@ services:
       - "8080:8080"
     volumes:
       - ./deploy/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./deploy/tls:/etc/cargo/tls:ro   # client cert + CA for mTLS upstream
     depends_on:
       shipment:
         condition: service_started

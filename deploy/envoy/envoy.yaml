@@ -53,6 +53,26 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
           explicit_http_config:
             http2_protocol_options: {}
+      # mTLS upstream — Envoy presents the internal client cert and
+      # verifies the shipment server cert against the cargo dev CA.
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: shipment
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/cargo/tls/client.crt
+                private_key:
+                  filename: /etc/cargo/tls/client.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/cargo/tls/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: shipment
       load_assignment:
         cluster_name: shipment
         endpoints:
@@ -71,6 +91,26 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
           explicit_http_config:
             http2_protocol_options: {}
+      # mTLS upstream — Envoy presents the internal client cert and
+      # verifies the tracking server cert against the cargo dev CA.
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: tracking
+          common_tls_context:
+            tls_certificates:
+              - certificate_chain:
+                  filename: /etc/cargo/tls/client.crt
+                private_key:
+                  filename: /etc/cargo/tls/client.key
+            validation_context:
+              trusted_ca:
+                filename: /etc/cargo/tls/ca.crt
+              match_typed_subject_alt_names:
+                - san_type: DNS
+                  matcher:
+                    exact: tracking
       load_assignment:
         cluster_name: tracking
         endpoints:

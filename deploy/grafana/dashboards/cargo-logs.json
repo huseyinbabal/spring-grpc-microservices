@@ -7,7 +7,7 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "loki", "uid": "" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 20, "w": 24, "x": 0, "y": 0 },
       "id": 1,
@@ -23,18 +23,18 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "" },
+          "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{job=\"docker\"} |= ``",
+          "expr": "{container_name=~\"$container\"} |= `$search`",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "All Container Logs",
+      "title": "Container Logs",
       "type": "logs"
     },
     {
-      "datasource": { "type": "loki", "uid": "" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } }, "overrides": [] },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
       "id": 2,
@@ -44,9 +44,9 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "" },
+          "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "sum(rate({job=\"docker\"}[1m])) by (container_name)",
+          "expr": "sum(rate({container_name=~\"$container\"}[1m])) by (container_name)",
           "legendFormat": "{{container_name}}",
           "queryType": "range",
           "refId": "A"
@@ -58,11 +58,33 @@
   ],
   "schemaVersion": 39,
   "tags": ["cargo", "loki"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "container",
+        "label": "Container",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values(container_name)",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 1,
+        "sort": 1
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
   "title": "Cargo — Container Logs",
   "uid": "cargo-logs",
-  "version": 1
+  "version": 2
 }

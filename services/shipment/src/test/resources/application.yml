@@ -10,3 +10,7 @@ grpc:
     # (see CreateShipmentIT, GetShipmentIT, ListShipmentsIT,
     # UpdateShipmentStatusIT, CancelShipmentIT).
     port: -1
+    # In-process transport has no wire — mTLS is meaningless here and
+    # would otherwise require the cert files to exist on the test host.
+    security:
+      enabled: false

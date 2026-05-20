@@ -1,0 +1,29 @@
+# Minimal Prometheus config — exists primarily as a remote_write
+# receiver for Tempo's metrics-generator (service-graph + span
+# metrics). No scrape jobs needed for the training stack; Spring Boot
+# services push traces directly to Tempo, and Tempo pushes the derived
+# metrics here. Grafana queries this Prometheus to draw the Service
+# Map view of the Tempo datasource.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Self-scrape so the instance shows healthy and `up{job="prometheus"}`
+  # is queryable from Grafana.
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Spring Boot services — Micrometer exposes JVM, HTTP and gRPC
+  # server/client metrics at /actuator/prometheus on the management
+  # HTTP port (8081). Scraped over the compose network by container name.
+  - job_name: "cargo-services"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - "shipment:8081"
+          - "tracking:8081"
+          - "notification:8081"
+        labels:
+          stack: cargo

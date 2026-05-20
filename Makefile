@@ -1,6 +1,11 @@
-.PHONY: demo up down logs build
+.PHONY: demo up down logs build certs
 
-up:
+# Generate the local mTLS CA + per-service certs (idempotent — a no-op
+# once deploy/tls/ca.crt exists).
+certs:
+	@bash deploy/tls/gen-certs.sh
+
+up: certs
 	docker compose up -d --build
 
 down:

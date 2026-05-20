@@ -7,3 +7,29 @@ datasources:
     uid: tempo
     url: http://tempo:3200
     editable: false
+    jsonData:
+      # Service Map view: Grafana queries Prometheus for the
+      # `traces_service_graph_request_*` series Tempo's
+      # metrics-generator emits.
+      serviceMap:
+        datasourceUid: prometheus
+      # Jump from a span to its corresponding RED metrics in Prometheus.
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags:
+          - key: service.name
+            value: service
+      # Jump from a span to logs in Loki filtered by trace_id.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -1m
+        spanEndTimeShift: 1m
+        filterByTraceID: true
+        customQuery: true
+        query: '{service_name="$${__span.tags.service.name}"} | json | trace_id = `$${__span.traceId}`'
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki

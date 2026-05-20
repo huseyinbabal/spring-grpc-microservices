@@ -2,6 +2,10 @@
 # Receives OTLP/gRPC on :4317 and OTLP/HTTP on :4318, stores blocks on
 # the filesystem under /var/tempo. No auth, no replication — matches the
 # Loki pattern for training scope.
+#
+# The metrics-generator emits service-graph and span metrics derived
+# from incoming spans, then remote-writes them to Prometheus so
+# Grafana's Service Map view (and RED panels) have data to render.
 
 server:
   http_listen_port: 3200
@@ -29,3 +33,28 @@ storage:
       path: /var/tempo/wal
     local:
       path: /var/tempo/blocks
+
+# Enables span → metrics derivation. The processors are turned on
+# per-tenant via the `overrides.defaults.metrics_generator.processors`
+# block below; without that, this section just declares capability.
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: cargo-local
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
+
+# Per-tenant runtime config. `single-tenant` is Tempo's default tenant
+# id when auth is disabled; the `defaults` block applies to it.
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics

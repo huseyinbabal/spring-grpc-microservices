@@ -1,0 +1,17 @@
+{
+  "methodConfig": [
+    {
+      "name": [
+        { "service": "cargo.shipment.v1.ShipmentService" }
+      ],
+      "retryPolicy": {
+        "maxAttempts": 4,
+        "initialBackoff": "0.5s",
+        "maxBackoff": "5s",
+        "backoffMultiplier": 2.0,
+        "retryableStatusCodes": [ "UNAVAILABLE", "RESOURCE_EXHAUSTED" ]
+      },
+      "timeout": "3s"
+    }
+  ]
+}

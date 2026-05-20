@@ -69,6 +69,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- A lightweight HTTP listener (separate management port) so
+             Prometheus can scrape /actuator/prometheus. The gRPC server
+             stays on 9090; this serves actuator only, no controllers. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- Micrometer → Prometheus registry. Its presence as a
+             MeterRegistry also switches on net.devh's
+             MetricCollectingServerInterceptor → gRPC server metrics. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.flywaydb</groupId>

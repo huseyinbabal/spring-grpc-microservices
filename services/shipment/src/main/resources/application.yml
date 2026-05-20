@@ -1,9 +1,11 @@
+server:
+  # Management HTTP port — serves /actuator/* only (Prometheus scrape +
+  # K8s probes). The gRPC API stays on grpc.server.port (9090).
+  port: ${MGMT_PORT:8081}
+
 spring:
   application:
     name: shipment
-  main:
-    # No web layer — this service only speaks gRPC.
-    web-application-type: none
 
   datasource:
     url: ${SHIPMENT_DB_URL:jdbc:postgresql://localhost:5432/shipment}
@@ -27,6 +29,32 @@ grpc:
     # Enable the gRPC reflection service so `grpcurl list` works
     # during development. Disable in production profiles.
     reflection-service-enabled: true
+    # HTTP/2 keepalive — ping idle clients to detect half-open sockets.
+    keep-alive-time: 30s
+    keep-alive-timeout: 5s
+    # Tolerate client pings as frequent as every 20s (clients ping at
+    # 30s) even with no in-flight calls — avoids GOAWAY "too_many_pings".
+    permit-keep-alive-time: 20s
+    permit-keep-alive-without-calls: true
+    # Connection draining for zero-downtime rollouts: a connection older
+    # than 30m is cycled — the server sends GOAWAY, lets in-flight RPCs
+    # finish within the 30s grace window, then closes. Clients re-resolve
+    # DNS and reconnect (to a fresh pod after a rolling update).
+    max-connection-age: 30m
+    max-connection-age-grace: 30s
+    # On SIGTERM, stop accepting new calls and let in-flight ones drain
+    # for up to 30s before the process exits.
+    shutdown-grace-period: 30s
+    # Mutual TLS. The server presents shipment.crt and REQUIRES every
+    # caller (Envoy, tracking, grpcurl) to present a client cert signed
+    # by the cargo dev CA. Disabled in the test profile (in-process
+    # transport has no wire). Certs are mounted at CARGO_TLS_DIR.
+    security:
+      enabled: ${GRPC_TLS_ENABLED:true}
+      certificate-chain: file:${CARGO_TLS_DIR:/etc/cargo/tls}/shipment.crt
+      private-key: file:${CARGO_TLS_DIR:/etc/cargo/tls}/shipment.key
+      trust-cert-collection: file:${CARGO_TLS_DIR:/etc/cargo/tls}/ca.crt
+      client-auth: REQUIRE
 
 management:
   tracing:
@@ -42,6 +70,10 @@ management:
   endpoints:
     web:
       exposure:
-        # Actuator pulled in for tracing auto-config; leave web endpoints
-        # closed — this service is gRPC-only (web-application-type: none).
-        exclude: "*"
+        # Exposed on the management HTTP port for Prometheus scraping
+        # and Kubernetes liveness/readiness probes.
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true

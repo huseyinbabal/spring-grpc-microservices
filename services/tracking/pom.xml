@@ -49,6 +49,19 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Client-side fault tolerance. resilience4j-spring-boot3 brings
+             the @CircuitBreaker autoconfig; spring-boot-starter-aop
+             provides the proxy machinery the resilience4j aspect needs
+             to intercept the annotated ShipmentClient method. -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
         <!-- Tracing: Micrometer observation → OTel SDK → OTLP exporter.
              `datasource-micrometer-spring-boot` wraps the JDBC
              DataSource; Spring Kafka and grpc-spring-boot-starter
@@ -70,6 +83,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- HTTP listener for /actuator/prometheus; gRPC stays on 9090. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- Micrometer → Prometheus registry; also enables net.devh's
+             gRPC server metrics interceptor. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
         <dependency>

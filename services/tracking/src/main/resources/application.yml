@@ -1,8 +1,11 @@
+server:
+  # Management HTTP port — serves /actuator/* only (Prometheus scrape +
+  # K8s probes). The gRPC API stays on grpc.server.port (9090).
+  port: ${MGMT_PORT:8081}
+
 spring:
   application:
     name: tracking
-  main:
-    web-application-type: none
 
   datasource:
     url: ${TRACKING_DB_URL:jdbc:postgresql://localhost:5432/tracking}
@@ -36,10 +39,55 @@ grpc:
   server:
     port: 9090
     reflection-service-enabled: true
+    # HTTP/2 keepalive — ping idle clients to detect half-open sockets.
+    keep-alive-time: 30s
+    keep-alive-timeout: 5s
+    # Tolerate client pings as frequent as every 20s (clients ping at
+    # 30s) even with no in-flight calls — avoids GOAWAY "too_many_pings".
+    permit-keep-alive-time: 20s
+    permit-keep-alive-without-calls: true
+    # Connection draining for zero-downtime rollouts: a connection older
+    # than 30m is cycled — the server sends GOAWAY, lets in-flight RPCs
+    # finish within the 30s grace window, then closes. Clients re-resolve
+    # DNS and reconnect (to a fresh pod after a rolling update).
+    max-connection-age: 30m
+    max-connection-age-grace: 30s
+    # On SIGTERM, stop accepting new calls and let in-flight ones drain
+    # for up to 30s before the process exits.
+    shutdown-grace-period: 30s
+    # Mutual TLS — see shipment/application.yml. Disabled in the test
+    # profile (in-process transport has no wire).
+    security:
+      enabled: ${GRPC_TLS_ENABLED:true}
+      certificate-chain: file:${CARGO_TLS_DIR:/etc/cargo/tls}/tracking.crt
+      private-key: file:${CARGO_TLS_DIR:/etc/cargo/tls}/tracking.key
+      trust-cert-collection: file:${CARGO_TLS_DIR:/etc/cargo/tls}/ca.crt
+      client-auth: REQUIRE
 
 cargo:
   tracking:
-    shipment-target: ${SHIPMENT_GRPC_TARGET:shipment:9090}
+    shipment-target: ${SHIPMENT_GRPC_TARGET:dns:///shipment:9090}
+    # Mutual TLS for the Tracking -> Shipment channel. Enabled by
+    # default; the test profile turns it off (loopback in-process).
+    tls:
+      enabled: ${GRPC_TLS_ENABLED:true}
+      dir: ${CARGO_TLS_DIR:/etc/cargo/tls}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      # Guards the Tracking → Shipment sync-enrichment call. The breaker
+      # opens when >=50% of the last 20 calls fail, short-circuits for
+      # 10s, then admits 3 trial calls in HALF_OPEN before deciding to
+      # close or re-open.
+      shipment:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
 
 management:
   tracing:
@@ -51,4 +99,10 @@ management:
   endpoints:
     web:
       exposure:
-        exclude: "*"
+        # Exposed on the management HTTP port for Prometheus scraping
+        # and Kubernetes liveness/readiness probes.
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
