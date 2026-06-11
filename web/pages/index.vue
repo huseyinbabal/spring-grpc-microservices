@@ -15,6 +15,15 @@ import {
 
 const { shipmentClient, trackingClient } = useGrpc()
 
+const keycloak = useNuxtApp().$keycloak as import('keycloak-js').default | undefined
+const username = ref('')
+onMounted(() => {
+  username.value = (keycloak?.tokenParsed?.preferred_username as string) ?? ''
+})
+function logout() {
+  keycloak?.logout({ redirectUri: 'http://localhost:3000' })
+}
+
 const originCity = ref('Berlin')
 const originCountry = ref('DE')
 const destCity = ref('Paris')
@@ -134,7 +143,15 @@ onMounted(() => loadShipments())
 
 <template>
   <div style="max-width: 900px; margin: 0 auto; padding: 20px; font-family: system-ui, sans-serif;">
-    <h1 style="color: #1a73e8;">Cargo Tracking Platform</h1>
+    <div style="display: flex; justify-content: space-between; align-items: baseline;">
+      <h1 style="color: #1a73e8;">Cargo Tracking Platform</h1>
+      <div v-if="username" style="color: #666;">
+        Signed in as <strong>{{ username }}</strong>
+        <button @click="logout" style="margin-left: 8px; padding: 4px 12px; background: #eee; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;">
+          Logout
+        </button>
+      </div>
+    </div>
     <p style="color: #666;">gRPC-Web + ConnectRPC + Nuxt 3 + @bufbuild/protobuf</p>
 
     <section style="margin: 24px 0; padding: 16px; border: 1px solid #ddd; border-radius: 8px;">

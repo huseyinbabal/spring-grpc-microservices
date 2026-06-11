@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>A {@code NOT_FOUND} reply is a definitive answer, not a fault — it
  * is returned as {@code Optional.empty()} <em>without</em> tripping the
- * breaker. Cross-service traffic is plaintext inside compose; TLS/mTLS
- * is configured on the channel in the deployed stack.
+ * breaker. The channel itself carries mTLS and a client-credentials
+ * bearer token — see {@link ShipmentClientConfig}.
  */
 public class ShipmentClient {
 

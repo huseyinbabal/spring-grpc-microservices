@@ -206,12 +206,18 @@ services:
       SHIPMENT_DB_USER: "shipment"
       SHIPMENT_DB_PASSWORD: "shipment"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318/v1/traces"
+      # JWT enforcement — every gRPC call must carry a Keycloak-issued
+      # Bearer token, verified against the realm's JWKS.
+      CARGO_AUTH_ENABLED: "true"
+      CARGO_AUTH_JWKS_URI: "http://keycloak:8080/realms/cargo/protocol/openid-connect/certs"
     depends_on:
       postgres-shipment:
         condition: service_healthy
       kafka:
         condition: service_healthy
       tempo:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
 
   # Live geo-location ingest, read model (projected from shipment
@@ -238,12 +244,19 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9094"
       SHIPMENT_GRPC_TARGET: "shipment:9090"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4318/v1/traces"
+      # JWT enforcement (inbound) + client_credentials service token for
+      # the Tracking -> Shipment sync-enrichment channel (outbound).
+      CARGO_AUTH_ENABLED: "true"
+      CARGO_AUTH_JWKS_URI: "http://keycloak:8080/realms/cargo/protocol/openid-connect/certs"
+      CARGO_AUTH_TOKEN_URI: "http://keycloak:8080/realms/cargo/protocol/openid-connect/token"
     depends_on:
       postgres-tracking:
         condition: service_healthy
       kafka:
         condition: service_healthy
       tempo:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
 
   # Stateless event reactor. Consumes cargo.shipment.events and logs
@@ -436,8 +449,15 @@ services:
     ports:
       - "8180:8080"
     environment:
+      # Keycloak 24 reads KEYCLOAK_ADMIN; KC_BOOTSTRAP_ADMIN_* is the
+      # 26+ replacement — set both so an image bump keeps admin/admin.
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # Expose /health/ready on :8080 — the healthcheck below (and the
+      # shipment/tracking depends_on) need it.
+      KC_HEALTH_ENABLED: "true"
     command: ["start-dev", "--import-realm"]
     volumes:
       - ./deploy/keycloak/cargo-realm.json:/opt/keycloak/data/import/cargo-realm.json:ro

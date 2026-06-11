@@ -71,6 +71,10 @@ public class ShipmentClientConfig {
             @Value("${cargo.tracking.shipment-target:dns:///shipment:9090}") String target,
             @Value("${cargo.tracking.tls.enabled:true}") boolean tlsEnabled,
             @Value("${cargo.tracking.tls.dir:/etc/cargo/tls}") String tlsDir,
+            @Value("${cargo.auth.enabled:false}") boolean authEnabled,
+            @Value("${cargo.auth.token-uri:}") String tokenUri,
+            @Value("${cargo.auth.client-id:}") String clientId,
+            @Value("${cargo.auth.client-secret:}") String clientSecret,
             ObservationRegistry observationRegistry,
             ObjectMapper objectMapper) throws IOException {
 
@@ -91,6 +95,16 @@ public class ShipmentClientConfig {
                 .enableRetry()
                 .defaultServiceConfig(serviceConfig)
                 .intercept(new ObservationGrpcClientInterceptor(observationRegistry));
+
+        if (authEnabled) {
+            // Shipment requires a JWT on every call. Authenticate this
+            // machine-to-machine channel with the cargo-api service
+            // account (OAuth2 client_credentials) — JWT = which service,
+            // mTLS below = transport-level peer identity.
+            ClientCredentialsTokenProvider tokenProvider =
+                    new ClientCredentialsTokenProvider(tokenUri, clientId, clientSecret, objectMapper);
+            builder.intercept(new BearerTokenClientInterceptor(tokenProvider));
+        }
 
         if (tlsEnabled) {
             // Mutual TLS: present the internal client cert and trust only

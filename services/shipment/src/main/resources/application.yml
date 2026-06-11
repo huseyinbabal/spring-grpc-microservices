@@ -56,6 +56,15 @@ grpc:
       trust-cert-collection: file:${CARGO_TLS_DIR:/etc/cargo/tls}/ca.crt
       client-auth: REQUIRE
 
+cargo:
+  auth:
+    # Require a Keycloak-issued JWT on every gRPC call (see
+    # GrpcAuthConfig). Off by default so bare local runs and the
+    # in-process test profile stay tokenless; the compose stack turns
+    # it on with CARGO_AUTH_ENABLED=true.
+    enabled: ${CARGO_AUTH_ENABLED:false}
+    jwks-uri: ${CARGO_AUTH_JWKS_URI:http://keycloak:8080/realms/cargo/protocol/openid-connect/certs}
+
 management:
   tracing:
     sampling:

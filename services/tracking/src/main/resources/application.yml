@@ -65,6 +65,16 @@ grpc:
       client-auth: REQUIRE
 
 cargo:
+  auth:
+    # Require a Keycloak-issued JWT on every inbound gRPC call (see
+    # GrpcAuthConfig) and attach a client_credentials service token to
+    # the outbound Tracking -> Shipment channel. Off by default; the
+    # compose stack turns it on with CARGO_AUTH_ENABLED=true.
+    enabled: ${CARGO_AUTH_ENABLED:false}
+    jwks-uri: ${CARGO_AUTH_JWKS_URI:http://keycloak:8080/realms/cargo/protocol/openid-connect/certs}
+    token-uri: ${CARGO_AUTH_TOKEN_URI:http://keycloak:8080/realms/cargo/protocol/openid-connect/token}
+    client-id: ${CARGO_AUTH_CLIENT_ID:cargo-api}
+    client-secret: ${CARGO_AUTH_CLIENT_SECRET:cargo-secret}
   tracking:
     shipment-target: ${SHIPMENT_GRPC_TARGET:dns:///shipment:9090}
     # Mutual TLS for the Tracking -> Shipment channel. Enabled by

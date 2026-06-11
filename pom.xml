@@ -26,7 +26,10 @@
         <maven.compiler.release>21</maven.compiler.release>
 
         <spring.boot.version>3.3.5</spring.boot.version>
-        <testcontainers.version>1.21.3</testcontainers.version>
+        <!-- 1.21.4+ required with Docker Desktop 29.2.x: older docker-java
+             fails the /info probe with HTTP 400 and Testcontainers gives
+             up with "Could not find a valid Docker environment". -->
+        <testcontainers.version>1.21.4</testcontainers.version>
         <!-- 2.7.3.Final's debezium-testing-testcontainers still has the
              pre-Strimzi `withKafka(KafkaContainer)` overload. Newer
              3.4+ releases only expose a Strimzi overload, which
