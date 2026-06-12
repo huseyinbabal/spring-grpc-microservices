@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="All Services (local)" type="CompoundRunConfigurationType">
+    <toRun name="Shipment (local)" type="SpringBootApplicationConfigurationType" />
+    <toRun name="Tracking (local)" type="SpringBootApplicationConfigurationType" />
+    <toRun name="Notification (local)" type="SpringBootApplicationConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

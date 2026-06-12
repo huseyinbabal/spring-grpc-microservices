@@ -1,0 +1,19 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Notification (local)" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
+    <module name="notification" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.cargo.notification.NotificationApplication" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+    <option name="ACTIVE_PROFILES" />
+    <envs>
+      <env name="GRPC_TLS_ENABLED" value="false" />
+      <env name="CARGO_AUTH_ENABLED" value="false" />
+      <env name="KAFKA_BOOTSTRAP_SERVERS" value="localhost:9092" />
+      <env name="OTEL_EXPORTER_OTLP_ENDPOINT" value="http://localhost:4318/v1/traces" />
+      <env name="MGMT_PORT" value="8083" />
+      <env name="GRPC_SERVER_PORT" value="9092" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
