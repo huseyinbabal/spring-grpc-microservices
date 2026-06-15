@@ -37,7 +37,7 @@ spring:
 
 grpc:
   server:
-    port: 9090
+    port: ${GRPC_SERVER_PORT:9090}
     reflection-service-enabled: true
     # HTTP/2 keepalive — ping idle clients to detect half-open sockets.
     keep-alive-time: 30s

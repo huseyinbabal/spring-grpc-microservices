@@ -9,8 +9,8 @@
       <env name="CARGO_AUTH_ENABLED" value="false" />
       <env name="KAFKA_BOOTSTRAP_SERVERS" value="localhost:9092" />
       <env name="OTEL_EXPORTER_OTLP_ENDPOINT" value="http://localhost:4318/v1/traces" />
-      <env name="MGMT_PORT" value="8083" />
-      <env name="GRPC_SERVER_PORT" value="9092" />
+      <env name="MGMT_PORT" value="8094" />
+      <env name="GRPC_SERVER_PORT" value="9099" />
     </envs>
     <method v="2">
       <option name="Make" enabled="true" />
