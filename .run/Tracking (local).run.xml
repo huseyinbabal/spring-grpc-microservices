@@ -1,0 +1,23 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Tracking (local)" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
+    <module name="tracking" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.cargo.tracking.TrackingApplication" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+    <option name="ACTIVE_PROFILES" />
+    <envs>
+      <env name="GRPC_TLS_ENABLED" value="false" />
+      <env name="CARGO_AUTH_ENABLED" value="false" />
+      <env name="TRACKING_DB_URL" value="jdbc:postgresql://localhost:55433/tracking" />
+      <env name="TRACKING_DB_USER" value="tracking" />
+      <env name="TRACKING_DB_PASSWORD" value="tracking" />
+      <env name="KAFKA_BOOTSTRAP_SERVERS" value="localhost:9092" />
+      <env name="SHIPMENT_GRPC_TARGET" value="dns:///localhost:9090" />
+      <env name="OTEL_EXPORTER_OTLP_ENDPOINT" value="http://localhost:4318/v1/traces" />
+      <env name="MGMT_PORT" value="8082" />
+      <env name="GRPC_SERVER_PORT" value="9091" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

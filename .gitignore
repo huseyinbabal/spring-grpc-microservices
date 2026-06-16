@@ -5,6 +5,8 @@ gen/
 
 # Maven
 .mvn/wrapper/maven-wrapper.jar
+# Per-developer JVM args (e.g. corporate truststore overrides)
+.mvn/jvm.config
 
 # IDE
 .idea/

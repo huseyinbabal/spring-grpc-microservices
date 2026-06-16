@@ -52,6 +52,24 @@ make build       # mvn -B -ntp verify
 **Keycloak:** http://localhost:8180 (cargo realm, admin/admin)
 **Envoy:** http://localhost:8080 (gRPC-Web proxy)
 
+## Local-mode (debug a service from the IDE)
+
+Every service ships in `compose.yaml`. To swap one out for a host-side
+copy (IDE debug, hot reload) while the rest of the stack stays in
+compose:
+
+1. `make up`
+2. `docker compose stop <service>` to free the port — `shipment`,
+   `tracking`, `notification`, `envoy`, or `web`
+3. Start the host-side replacement:
+   - **shipment / tracking / notification** — IntelliJ run config in `.run/`
+   - **envoy** — `make envoy-local` (uses `deploy/envoy/envoy.local.yaml`,
+     plain h2c, upstreams = `host.docker.internal:9090/9091`)
+   - **web** — `make web-local` (`npm install && nuxt dev`)
+
+Each replacement binds the same port the compose container did, so the
+rest of the stack keeps working unchanged.
+
 ## Status
 
 - [x] Slice 0 — walking skeleton

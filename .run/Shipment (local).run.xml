@@ -1,0 +1,20 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Shipment (local)" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
+    <module name="shipment" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.cargo.shipment.ShipmentApplication" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+    <option name="ACTIVE_PROFILES" />
+    <envs>
+      <env name="GRPC_TLS_ENABLED" value="false" />
+      <env name="CARGO_AUTH_ENABLED" value="false" />
+      <env name="SHIPMENT_DB_URL" value="jdbc:postgresql://localhost:55432/shipment" />
+      <env name="SHIPMENT_DB_USER" value="shipment" />
+      <env name="SHIPMENT_DB_PASSWORD" value="shipment" />
+      <env name="OTEL_EXPORTER_OTLP_ENDPOINT" value="http://localhost:4318/v1/traces" />
+      <env name="MGMT_PORT" value="8081" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
