@@ -23,6 +23,7 @@ spec:
       containers:
         - name: web
           image: ghcr.io/huseyinbabal/cargo-web
+          imagePullPolicy: Always
           ports:
             - { name: http, containerPort: 3000 }
           readinessProbe:
