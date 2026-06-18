@@ -26,9 +26,9 @@ spec:
   chart:
     spec:
       chart: strimzi-kafka-operator
-      # Floating range → latest tested patch. Pin exactly for prod;
-      # `helm search repo strimzi/strimzi-kafka-operator --versions`.
-      version: ">=0.43.0"
+      # Pinned: this build ships Kafka 4.1.0, which databases/kafka.yaml
+      # targets. Bumping it may change the supported Kafka version.
+      version: "1.0.1"
       sourceRef:
         kind: HelmRepository
         name: strimzi

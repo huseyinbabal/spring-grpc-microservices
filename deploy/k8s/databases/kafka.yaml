@@ -33,8 +33,10 @@ metadata:
     strimzi.io/kraft: enabled
 spec:
   kafka:
-    version: 3.8.0
-    metadataVersion: 3.8-IV0
+    # Must be a version the installed operator (Strimzi 1.0.1) supports —
+    # that build ships only Kafka 4.1.0 (KRaft-only). metadataVersion is
+    # left to the operator default for this version.
+    version: 4.1.0
     listeners:
       - name: plain
         port: 9092

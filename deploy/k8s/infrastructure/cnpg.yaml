@@ -21,9 +21,8 @@ spec:
   chart:
     spec:
       chart: cloudnative-pg
-      # Floating range → latest tested patch. Pin exactly for prod;
-      # `helm search repo cloudnative-pg/cloudnative-pg --versions`.
-      version: ">=0.22.0"
+      # Pinned to the tested version (operator 1.26.x).
+      version: "0.28.3"
       sourceRef:
         kind: HelmRepository
         name: cloudnative-pg
