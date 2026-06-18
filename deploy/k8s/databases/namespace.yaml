@@ -1,0 +1,7 @@
+# Single namespace for the whole Cargo workload (DBs, Kafka, services).
+# Created here because the databases layer is the first to need it; the
+# apps overlay only places resources *into* it (no second owner).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cargo

@@ -1,0 +1,14 @@
+# gRPC-Web edge. NodePort 30080 is mapped to host :8080 by the kind
+# config, so the browser hits http://localhost:8080 with no port-forward.
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy
+  labels:
+    app: envoy
+spec:
+  type: NodePort
+  selector:
+    app: envoy
+  ports:
+    - { name: http, port: 8080, targetPort: http, nodePort: 30080 }

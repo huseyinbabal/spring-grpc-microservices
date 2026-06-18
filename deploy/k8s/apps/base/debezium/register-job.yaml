@@ -1,0 +1,83 @@
+# Registers the shipment-outbox connector against the Connect REST API.
+# Mirrors Compose's connect-init: idempotent (HTTP 409 = already there),
+# retries while Connect/Postgres warm up. The DB password is read from
+# the CloudNativePG-generated secret and injected at apply time, so it
+# never lives in Git.
+#
+# EventRouter SMT routes outbox rows to cargo.${routedByValue}.events →
+# cargo.shipment.events (aggregate_type = shipment). The `\$` keeps the
+# placeholder literal through the shell heredoc.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: register-shipment-outbox
+  labels:
+    app: connect
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: connect-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: register
+          image: curlimages/curl:8.10.1
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-shipment-app
+                  key: password
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              cat > /tmp/connector.json <<EOF
+              {
+                "name": "shipment-outbox-connector",
+                "config": {
+                  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+                  "tasks.max": "1",
+                  "database.hostname": "postgres-shipment-rw",
+                  "database.port": "5432",
+                  "database.user": "shipment",
+                  "database.password": "${DB_PASSWORD}",
+                  "database.dbname": "shipment",
+                  "topic.prefix": "cargo.cdc.shipment",
+                  "schema.include.list": "public",
+                  "table.include.list": "public.outbox",
+                  "plugin.name": "pgoutput",
+                  "publication.name": "dbz_shipment_outbox",
+                  "slot.name": "dbz_shipment_outbox",
+                  "snapshot.mode": "initial",
+                  "heartbeat.interval.ms": "10000",
+                  "tombstones.on.delete": "false",
+                  "transforms": "outbox",
+                  "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+                  "transforms.outbox.table.field.event.id": "id",
+                  "transforms.outbox.table.field.event.key": "aggregate_id",
+                  "transforms.outbox.table.field.event.type": "type",
+                  "transforms.outbox.table.field.event.payload": "payload",
+                  "transforms.outbox.table.fields.additional.placement": "type:header:event-type,tracingspancontext:header:traceparent",
+                  "transforms.outbox.route.by.field": "aggregate_type",
+                  "transforms.outbox.route.topic.replacement": "cargo.\${routedByValue}.events"
+                }
+              }
+              EOF
+              echo "registering shipment-outbox-connector…"
+              for attempt in $(seq 1 30); do
+                status=$(curl -sS -o /tmp/body -w "%{http_code}" \
+                  -X POST -H "Content-Type: application/json" \
+                  --data @/tmp/connector.json \
+                  http://connect:8083/connectors/ || echo "000")
+                echo "attempt $attempt — HTTP $status"; cat /tmp/body 2>/dev/null; echo
+                case "$status" in
+                  201) echo "connector created."; exit 0 ;;
+                  409) echo "connector already exists."; exit 0 ;;
+                  *)   sleep 5 ;;
+                esac
+              done
+              echo "gave up after 30 attempts"; exit 1

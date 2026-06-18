@@ -1,0 +1,14 @@
+# In-cluster name `keycloak:8080` (used by shipment/tracking for JWKS +
+# token). NodePort 30180 → host :8180 for the admin console.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  type: NodePort
+  selector:
+    app: keycloak
+  ports:
+    - { name: http, port: 8080, targetPort: http, nodePort: 30180 }

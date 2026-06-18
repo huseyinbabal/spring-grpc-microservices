@@ -1,0 +1,47 @@
+# Dev-mode Keycloak with the cargo realm imported on boot. Uses the
+# in-memory H2 store (re-imports every restart) — fine for the demo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:24.0
+          args: ["start-dev", "--import-realm"]
+          env:
+            - { name: KEYCLOAK_ADMIN, value: admin }
+            - { name: KEYCLOAK_ADMIN_PASSWORD, value: admin }
+            - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin }
+            - { name: KC_BOOTSTRAP_ADMIN_PASSWORD, value: admin }
+            - { name: KC_HEALTH_ENABLED, value: "true" }
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import/cargo-realm.json
+              subPath: cargo-realm.json
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits:   { cpu: "1",  memory: 1Gi }
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm

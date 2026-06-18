@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy
+  labels:
+    app: envoy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: envoy
+  template:
+    metadata:
+      labels:
+        app: envoy
+    spec:
+      containers:
+        - name: envoy
+          image: envoyproxy/envoy:v1.30-latest
+          command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--service-cluster", "cargo-edge"]
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/envoy/envoy.yaml
+              subPath: envoy.yaml
+              readOnly: true
+            - name: tls
+              mountPath: /etc/cargo/tls
+              readOnly: true
+          readinessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m,  memory: 64Mi }
+            limits:   { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: envoy-config
+        - name: tls
+          secret:
+            secretName: cargo-tls

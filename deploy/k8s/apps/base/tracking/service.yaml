@@ -1,0 +1,14 @@
+# Name MUST be `tracking` — server cert SAN is `tracking`. Envoy routes
+# /cargo.tracking.v1.TrackingService/* here over mTLS.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tracking
+  labels:
+    app: tracking
+spec:
+  selector:
+    app: tracking
+  ports:
+    - { name: grpc, port: 9090, targetPort: grpc }
+    - { name: mgmt, port: 8081, targetPort: mgmt }

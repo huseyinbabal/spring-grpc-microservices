@@ -1,0 +1,18 @@
+# Dev environment overlay. Pins every workload into the `cargo`
+# namespace and stamps the image tags. Promotion to another env = a
+# sibling overlay with different newTag / replica patches; the same
+# image bytes flow through (see session-07 slides "promotion across envs").
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cargo
+resources:
+  - ../../base
+images:
+  - name: ghcr.io/huseyinbabal/cargo-shipment
+    newTag: main
+  - name: ghcr.io/huseyinbabal/cargo-tracking
+    newTag: main
+  - name: ghcr.io/huseyinbabal/cargo-notification
+    newTag: main
+  - name: ghcr.io/huseyinbabal/cargo-web
+    newTag: main

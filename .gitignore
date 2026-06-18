@@ -26,4 +26,7 @@ Thumbs.db
 # Generated cluster kubeconfig (contains credentials)
 deploy/hetzner/kubeconfig
 deploy/hetzner/kubeconfig.*
+
+# Course material / separate repo — kept out of this repo
 slides/
+demo-v3/

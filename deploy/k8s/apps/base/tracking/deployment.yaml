@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tracking
+  labels:
+    app: tracking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tracking
+  template:
+    metadata:
+      labels:
+        app: tracking
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: tracking
+          image: ghcr.io/huseyinbabal/cargo-tracking
+          ports:
+            - { name: grpc, containerPort: 9090 }
+            - { name: mgmt, containerPort: 8081 }
+          env:
+            - name: TRACKING_DB_URL
+              value: jdbc:postgresql://postgres-tracking-rw:5432/tracking
+            - name: TRACKING_DB_USER
+              value: tracking
+            - name: TRACKING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-tracking-app
+                  key: password
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: cargo-kafka-bootstrap:9092
+            # Authority must stay `shipment` to match the server cert SAN.
+            - name: SHIPMENT_GRPC_TARGET
+              value: dns:///shipment:9090
+            - name: CARGO_AUTH_ENABLED
+              value: "true"
+            - name: CARGO_AUTH_JWKS_URI
+              value: http://keycloak:8080/realms/cargo/protocol/openid-connect/certs
+            - name: CARGO_AUTH_TOKEN_URI
+              value: http://keycloak:8080/realms/cargo/protocol/openid-connect/token
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.cargo.svc.cluster.local:4318/v1/traces
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/cargo/tls
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: mgmt }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: mgmt }
+            initialDelaySeconds: 40
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 100m, memory: 384Mi }
+            limits:   { cpu: "1",  memory: 768Mi }
+      volumes:
+        - name: tls
+          secret:
+            secretName: cargo-tls

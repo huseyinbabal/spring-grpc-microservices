@@ -1,0 +1,52 @@
+# Consumer-only: no inbound Service. Reads cargo.shipment.events and
+# logs a line per event. Still mounts the mTLS material because its
+# (unused) gRPC health server defaults to TLS REQUIRE.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification
+  labels:
+    app: notification
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification
+  template:
+    metadata:
+      labels:
+        app: notification
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: notification
+          image: ghcr.io/huseyinbabal/cargo-notification
+          ports:
+            - { name: grpc, containerPort: 9090 }
+            - { name: mgmt, containerPort: 8081 }
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: cargo-kafka-bootstrap:9092
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://tempo.cargo.svc.cluster.local:4318/v1/traces
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/cargo/tls
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: mgmt }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: mgmt }
+            initialDelaySeconds: 40
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m,  memory: 256Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: tls
+          secret:
+            secretName: cargo-tls

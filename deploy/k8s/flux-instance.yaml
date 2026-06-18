@@ -1,0 +1,47 @@
+# FluxInstance — the single source of truth for the Flux installation.
+#
+# We do NOT bootstrap with the `flux` CLI. Instead the ControlPlane
+# Flux Operator owns the lifecycle of the Flux controllers, and this
+# FluxInstance CR declares which version/components to run and which Git
+# path to reconcile. Bring-up (see deploy/k8s/README.md):
+#
+#   helm install flux-operator \
+#     oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
+#     -n flux-system --create-namespace
+#   kubectl apply -f deploy/k8s/flux-instance.yaml
+#
+# The operator then installs source/kustomize/helm/notification
+# controllers and creates a GitRepository + Kustomization named
+# `flux-system` that reconciles `deploy/k8s/flux` — which in turn fans
+# out to infrastructure -> databases -> apps.
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: flux-system
+  annotations:
+    fluxcd.controlplane.io/reconcileEvery: "1h"
+    fluxcd.controlplane.io/reconcileTimeout: "5m"
+spec:
+  distribution:
+    version: "2.x"
+    registry: "ghcr.io/fluxcd"
+  components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+  cluster:
+    type: kubernetes
+    multitenant: false
+    networkPolicy: false
+    domain: "cluster.local"
+  # Git sync: the operator creates a GitRepository + Kustomization
+  # (both named `flux-system`) pointing at the layered manifests below.
+  sync:
+    kind: GitRepository
+    url: "https://github.com/huseyinbabal/spring-grpc-microservices.git"
+    ref: "refs/heads/main"
+    path: "deploy/k8s/flux"
+    # Public repo — no pullSecret. For a private repo, create a secret
+    # and set: pullSecret: "flux-system"

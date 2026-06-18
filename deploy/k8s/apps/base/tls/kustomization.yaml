@@ -1,0 +1,23 @@
+# One Secret holding the dev mTLS material, mounted at /etc/cargo/tls by
+# shipment/tracking/notification (server certs) and envoy (client cert).
+# Reuses the exact files Compose mounts — single source of truth.
+#
+# Paths reach outside this dir, so local `kustomize build` needs
+# `--load-restrictor=LoadRestrictionsNone` (Flux disables restrictions
+# by default).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+  - name: cargo-tls
+    files:
+      - ../../../../tls/ca.crt
+      - ../../../../tls/shipment.crt
+      - ../../../../tls/shipment.key
+      - ../../../../tls/tracking.crt
+      - ../../../../tls/tracking.key
+      - ../../../../tls/notification.crt
+      - ../../../../tls/notification.key
+      - ../../../../tls/client.crt
+      - ../../../../tls/client.key

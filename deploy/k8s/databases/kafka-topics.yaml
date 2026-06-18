@@ -1,0 +1,19 @@
+# The one business topic. Debezium's EventRouter routes outbox rows to
+# `cargo.shipment.events`; tracking + notification consume it. Debezium's
+# own internal topics (connect-configs/offsets/status) auto-create.
+#
+# The k8s object name can't contain dots cleanly, so the topic name is
+# carried in spec.topicName.
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: cargo-shipment-events
+  namespace: cargo
+  labels:
+    strimzi.io/cluster: cargo
+spec:
+  topicName: cargo.shipment.events
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "604800000"   # 7 days

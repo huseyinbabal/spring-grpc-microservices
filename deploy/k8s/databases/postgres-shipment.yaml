@@ -1,0 +1,30 @@
+# Shipment DB — the CDC source. wal_level=logical + REPLICATION on the
+# app role are what let Debezium's pgoutput plugin create a publication
+# and replication slot on the outbox table.
+#
+# CNPG generates a Secret `postgres-shipment-app` with keys
+# username/password for the `shipment` role; the shipment Deployment and
+# the Debezium connector both read the password from it.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-shipment
+  namespace: cargo
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 1Gi
+  postgresql:
+    parameters:
+      wal_level: logical
+      max_wal_senders: "10"
+      max_replication_slots: "10"
+  bootstrap:
+    initdb:
+      database: shipment
+      owner: shipment
+      # Grant REPLICATION to the app role so Debezium can stream WAL.
+      # Runs as superuser on the postgres db after the role is created.
+      postInitSQL:
+        - ALTER ROLE "shipment" WITH REPLICATION

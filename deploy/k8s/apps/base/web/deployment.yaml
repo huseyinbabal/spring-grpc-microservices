@@ -1,0 +1,37 @@
+# Nuxt SPA. The browser-side URLs are hardcoded to localhost:8080
+# (Envoy), :8180 (Keycloak), :3000 (self) — which line up exactly with
+# the kind NodePort mappings, so no runtime env is needed.
+#
+# NOTE: there is no image-web.yml CI workflow yet, so
+# ghcr.io/huseyinbabal/cargo-web:main is not published. Either add that
+# workflow, or `kind load docker-image cargo-web:local` and point the
+# overlay image there. Until then this pod will ImagePullBackOff — it
+# does not block the rest of the stack (apps Kustomization wait:false).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/huseyinbabal/cargo-web
+          ports:
+            - { name: http, containerPort: 3000 }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m,  memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }

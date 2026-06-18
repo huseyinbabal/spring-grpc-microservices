@@ -1,0 +1,17 @@
+# Reconciled by the `flux-system` Kustomization that the FluxInstance
+# creates (sync.path = deploy/k8s/flux). These three Flux Kustomization
+# CRs form the dependency chain:
+#
+#   infrastructure  (CNPG + Strimzi operators, via Helm)
+#        │  dependsOn
+#        ▼
+#   databases       (CNPG Clusters + Strimzi Kafka — need the CRDs above)
+#        │  dependsOn
+#        ▼
+#   apps            (our services — need DB/Kafka services + secrets)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - infrastructure.yaml
+  - databases.yaml
+  - apps.yaml

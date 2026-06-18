@@ -1,0 +1,29 @@
+# kind cluster for the Cargo Tracking Platform.
+#
+#   kind create cluster --config deploy/k8s/kind/kind-config.yaml
+#
+# A single node is enough for the demo. extraPortMappings expose the two
+# host-facing surfaces straight on localhost (no `kubectl port-forward`):
+#
+#   localhost:8080  -> Envoy gRPC-Web edge      (NodePort 30080)
+#   localhost:3000  -> Nuxt web UI              (NodePort 30000)
+#   localhost:8180  -> Keycloak admin console   (NodePort 30180)
+#
+# NOTE (see project memory): a stale `kubectl port-forward` on 8080 or a
+# local Go controller on 8083 will collide with these. `lsof -i :8080`
+# before `kind create`.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cargo
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080   # envoy NodePort
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30000   # web NodePort
+        hostPort: 3000
+        protocol: TCP
+      - containerPort: 30180   # keycloak NodePort
+        hostPort: 8180
+        protocol: TCP

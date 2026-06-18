@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  # Reuses the exact Compose Envoy config. Its clusters point at
+  # `shipment`/`tracking` (resolved by k8s DNS in this namespace) over
+  # mTLS with SNI/SAN = the service name.
+  - name: envoy-config
+    files:
+      - ../../../../envoy/envoy.yaml

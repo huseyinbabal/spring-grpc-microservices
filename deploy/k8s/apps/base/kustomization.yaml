@@ -1,0 +1,15 @@
+# All Cargo workloads. The dev overlay sets `namespace: cargo` and the
+# image tags. Each component dir carries its own Deployment/Service plus
+# any config/secret generator that reuses the canonical artifacts under
+# deploy/ (same envoy.yaml, same realm JSON, same dev certs as Compose).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - tls
+  - shipment
+  - tracking
+  - notification
+  - envoy
+  - keycloak
+  - web
+  - debezium

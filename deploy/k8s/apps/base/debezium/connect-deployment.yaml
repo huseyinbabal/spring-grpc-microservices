@@ -1,0 +1,46 @@
+# Debezium Kafka Connect worker — same image as Compose. We run it as a
+# plain Deployment (not a Strimzi KafkaConnect) so we don't need to build
+# a custom Connect image in a cluster with no push registry. Internal
+# topic replication factors are forced to 1 for the single-node broker.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: connect
+  labels:
+    app: connect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: connect
+  template:
+    metadata:
+      labels:
+        app: connect
+    spec:
+      containers:
+        - name: connect
+          image: quay.io/debezium/connect:2.7.3.Final
+          ports:
+            - { name: rest, containerPort: 8083 }
+          env:
+            - { name: BOOTSTRAP_SERVERS, value: "cargo-kafka-bootstrap:9092" }
+            - { name: GROUP_ID, value: "1" }
+            - { name: CONFIG_STORAGE_TOPIC, value: "connect-configs" }
+            - { name: OFFSET_STORAGE_TOPIC, value: "connect-offsets" }
+            - { name: STATUS_STORAGE_TOPIC, value: "connect-status" }
+            - { name: CONFIG_STORAGE_REPLICATION_FACTOR, value: "1" }
+            - { name: OFFSET_STORAGE_REPLICATION_FACTOR, value: "1" }
+            - { name: STATUS_STORAGE_REPLICATION_FACTOR, value: "1" }
+            - { name: KEY_CONVERTER, value: "org.apache.kafka.connect.json.JsonConverter" }
+            - { name: VALUE_CONVERTER, value: "org.apache.kafka.connect.json.JsonConverter" }
+            - { name: CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE, value: "false" }
+            - { name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE, value: "false" }
+          readinessProbe:
+            httpGet: { path: /connector-plugins, port: rest }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits:   { cpu: "1",  memory: 1Gi }

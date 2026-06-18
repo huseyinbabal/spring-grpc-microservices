@@ -1,0 +1,17 @@
+# Tracking DB — read model only (no CDC). Plain single-instance cluster.
+# CNPG generates Secret `postgres-tracking-app` (username/password) for
+# the `tracking` role, consumed by the tracking Deployment.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres-tracking
+  namespace: cargo
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: tracking
+      owner: tracking

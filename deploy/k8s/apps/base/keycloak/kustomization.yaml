@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  # The same `cargo` realm Compose imports (cargo-api client, demo user).
+  - name: keycloak-realm
+    files:
+      - ../../../../keycloak/cargo-realm.json
