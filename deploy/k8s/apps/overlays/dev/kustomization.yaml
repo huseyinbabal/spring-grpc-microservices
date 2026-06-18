@@ -18,6 +18,5 @@ images:
     newTag: main # {"$imagepolicy": "flux-system:tracking:tag"}
   - name: ghcr.io/huseyinbabal/cargo-notification
     newTag: main # {"$imagepolicy": "flux-system:notification:tag"}
-  # web has no CI image / policy yet — left as a plain moving tag.
   - name: ghcr.io/huseyinbabal/cargo-web
-    newTag: main
+    newTag: main # {"$imagepolicy": "flux-system:web:tag"}

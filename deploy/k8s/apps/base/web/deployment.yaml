@@ -2,11 +2,8 @@
 # (Envoy), :8180 (Keycloak), :3000 (self) — which line up exactly with
 # the kind NodePort mappings, so no runtime env is needed.
 #
-# NOTE: there is no image-web.yml CI workflow yet, so
-# ghcr.io/huseyinbabal/cargo-web:main is not published. Either add that
-# workflow, or `kind load docker-image cargo-web:local` and point the
-# overlay image there. Until then this pod will ImagePullBackOff — it
-# does not block the rest of the stack (apps Kustomization wait:false).
+# Published by .github/workflows/image-web.yml (multi-arch, same tag
+# scheme as the services).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

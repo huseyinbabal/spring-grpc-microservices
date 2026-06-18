@@ -119,12 +119,12 @@ Flux reconciles the new tag onto the cluster
 - CI tags every `main` build with `main-<UTC timestamp>` (see the
   `image-*.yml` workflows) — moving tags like `:main`/`:latest` are not
   orderable, so the policy ignores them.
-- The markers live on the `newTag` lines in `apps/overlays/dev`.
+- The markers live on the `newTag` lines in `apps/overlays/dev` (all four
+  images, including web).
 - **Write credentials required**: the automation pushes commits back to
   `main`, so the `flux-system` GitRepository needs a write-capable secret —
   see `sync.pullSecret` in `flux-instance.yaml`. Without it, scanning and
   policy selection still work, but the commit/push step fails.
-- web is excluded (no CI image / policy yet).
 
 ```bash
 # Inspect what the controllers see
@@ -135,10 +135,9 @@ flux get image update
 
 ## Known gaps / notes
 
-- **web image**: no `image-web.yml` workflow exists yet, so
-  `cargo-web:main` is not published. Add that workflow or
-  `kind load docker-image cargo-web:local` and repoint the overlay.
-  The web pod ImagePullBackOff does not block the rest of the stack.
+- **Multi-arch images**: services + web are built for `linux/amd64` and
+  `linux/arm64` (Apple Silicon kind nodes need arm64). The arm64 layer is
+  emulated via QEMU in CI, so image builds are slower.
 - **Observability** (Loki/Tempo/Prometheus/Grafana) is **Session 08**.
   Services keep their `OTEL_EXPORTER_OTLP_ENDPOINT` set; until Tempo
   exists, OTLP export is a harmless no-op.
