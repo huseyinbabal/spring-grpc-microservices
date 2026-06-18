@@ -19,6 +19,10 @@ spec:
   interval: 1h
   releaseName: strimzi
   targetNamespace: strimzi-system
+  # The operator image (quay.io/strimzi/operator) is large; on a slow
+  # link the pull exceeds Helm's default 5m timeout, so Flux would keep
+  # rolling back and re-pulling. Give it room to finish in one attempt.
+  timeout: 15m
   chart:
     spec:
       chart: strimzi-kafka-operator

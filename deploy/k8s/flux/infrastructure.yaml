@@ -9,7 +9,8 @@ metadata:
 spec:
   interval: 10m
   retryInterval: 1m
-  timeout: 8m
+  # Long enough to ride out a slow operator-image pull (see strimzi.yaml).
+  timeout: 20m
   sourceRef:
     kind: GitRepository
     name: flux-system
