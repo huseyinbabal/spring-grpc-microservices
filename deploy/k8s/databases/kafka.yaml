@@ -3,7 +3,7 @@
 # uses the internal plaintext listener on the bootstrap service
 # `cargo-kafka-bootstrap:9092` (matches KAFKA_BOOTSTRAP_SERVERS in the
 # tracking/notification Deployments and the Debezium worker).
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: dual-role
@@ -23,7 +23,7 @@ spec:
         size: 2Gi
         deleteClaim: false
 ---
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: cargo

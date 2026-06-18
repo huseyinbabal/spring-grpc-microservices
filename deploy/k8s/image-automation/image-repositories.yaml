@@ -1,7 +1,7 @@
 # One ImageRepository per microservice — the reflector polls GHCR every
 # 5m and caches the available tags. Images are public, so no pull secret.
 # (web is excluded: no CI image is published for it yet.)
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: shipment
@@ -10,7 +10,7 @@ spec:
   image: ghcr.io/huseyinbabal/cargo-shipment
   interval: 5m
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: tracking
@@ -19,7 +19,7 @@ spec:
   image: ghcr.io/huseyinbabal/cargo-tracking
   interval: 5m
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: notification

@@ -2,7 +2,7 @@
 # with `main-<UTC timestamp>` (see .github/workflows/image-*.yml); we
 # extract the numeric timestamp and pick the highest. Moving tags like
 # `:main`/`:latest` are deliberately ignored — they aren't orderable.
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: shipment
@@ -17,7 +17,7 @@ spec:
     numerical:
       order: asc
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: tracking
@@ -32,7 +32,7 @@ spec:
     numerical:
       order: asc
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: notification

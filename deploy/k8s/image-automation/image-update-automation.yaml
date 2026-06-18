@@ -5,7 +5,7 @@
 #
 # Requires WRITE credentials on the `flux-system` GitRepository
 # (see deploy/k8s/flux-instance.yaml sync.pullSecret).
-apiVersion: image.toolkit.fluxcd.io/v1beta1
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageUpdateAutomation
 metadata:
   name: cargo-apps

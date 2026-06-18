@@ -4,7 +4,7 @@
 #
 # The k8s object name can't contain dots cleanly, so the topic name is
 # carried in spec.topicName.
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
   name: cargo-shipment-events
