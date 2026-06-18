@@ -1,0 +1,48 @@
+# Each policy selects the newest build of `main`. CI tags every main push
+# with `main-<UTC timestamp>` (see .github/workflows/image-*.yml); we
+# extract the numeric timestamp and pick the highest. Moving tags like
+# `:main`/`:latest` are deliberately ignored — they aren't orderable.
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: shipment
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: shipment
+  filterTags:
+    pattern: '^main-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: tracking
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: tracking
+  filterTags:
+    pattern: '^main-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: notification
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: notification
+  filterTags:
+    pattern: '^main-(?P<ts>[0-9]+)$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc

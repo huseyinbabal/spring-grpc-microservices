@@ -1,0 +1,36 @@
+# Closes the GitOps loop: when a policy selects a newer tag, the
+# automation rewrites the matching `$imagepolicy` markers in the dev
+# overlay and commits straight back to main. Flux then reconciles the
+# bump onto the cluster — no human touches kubectl or the tag.
+#
+# Requires WRITE credentials on the `flux-system` GitRepository
+# (see deploy/k8s/flux-instance.yaml sync.pullSecret).
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: cargo-apps
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: |
+        deploy(k8s): automated image update
+
+        {{ range $image, $_ := .Updated.Images -}}
+        - {{ $image }}
+        {{ end -}}
+    push:
+      branch: main
+  update:
+    path: ./deploy/k8s/apps/overlays/dev
+    strategy: Setters

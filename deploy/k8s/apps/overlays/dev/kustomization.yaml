@@ -7,12 +7,17 @@ kind: Kustomization
 namespace: cargo
 resources:
   - ../../base
+# The `$imagepolicy` markers are rewritten in-place by Flux's
+# ImageUpdateAutomation (see deploy/k8s/image-automation). `newTag: main`
+# is the bootstrap value; once a `main-<ts>` build exists, automation
+# swaps it to the newest one and commits the change back to main.
 images:
   - name: ghcr.io/huseyinbabal/cargo-shipment
-    newTag: main
+    newTag: main # {"$imagepolicy": "flux-system:shipment:tag"}
   - name: ghcr.io/huseyinbabal/cargo-tracking
-    newTag: main
+    newTag: main # {"$imagepolicy": "flux-system:tracking:tag"}
   - name: ghcr.io/huseyinbabal/cargo-notification
-    newTag: main
+    newTag: main # {"$imagepolicy": "flux-system:notification:tag"}
+  # web has no CI image / policy yet — left as a plain moving tag.
   - name: ghcr.io/huseyinbabal/cargo-web
     newTag: main

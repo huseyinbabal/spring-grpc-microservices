@@ -31,6 +31,10 @@ spec:
     - kustomize-controller
     - helm-controller
     - notification-controller
+    # Image automation: reflector scans GHCR for tags, automation commits
+    # the chosen tag back to Git (see deploy/k8s/image-automation).
+    - image-reflector-controller
+    - image-automation-controller
   cluster:
     type: kubernetes
     multitenant: false
@@ -43,5 +47,11 @@ spec:
     url: "https://github.com/huseyinbabal/spring-grpc-microservices.git"
     ref: "refs/heads/main"
     path: "deploy/k8s/flux"
-    # Public repo — no pullSecret. For a private repo, create a secret
-    # and set: pullSecret: "flux-system"
+    # Read is public (no secret needed). But ImageUpdateAutomation must
+    # PUSH tag bumps back to main, so the GitRepository needs WRITE creds.
+    # Create a secret with a GitHub PAT (repo write) or deploy key and
+    # uncomment — it is used for both pull and push:
+    #   kubectl create secret generic flux-system -n flux-system \
+    #     --from-literal=username=git \
+    #     --from-literal=password=<github-pat-with-write>
+    # pullSecret: "flux-system"

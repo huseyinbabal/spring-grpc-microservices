@@ -29,7 +29,8 @@ app role so Debezium's `pgoutput` plugin can tail the outbox table.
 | `infrastructure/` | `HelmRelease`s for CloudNativePG + Strimzi |
 | `databases/` | CNPG `Cluster`s, Strimzi `Kafka` + `KafkaNodePool` + `KafkaTopic` |
 | `apps/base/` | Deployments/Services + generators reusing `deploy/{tls,envoy,keycloak}` |
-| `apps/overlays/dev/` | namespace `cargo` + image tags (`:main`) |
+| `apps/overlays/dev/` | namespace `cargo` + image tags (`:main`) + `$imagepolicy` markers |
+| `image-automation/` | `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation` per service |
 
 The TLS Secret, Envoy config and Keycloak realm are **generated from the
 exact same files Compose mounts** (`deploy/tls`, `deploy/envoy`,
@@ -92,6 +93,44 @@ kustomize build deploy/k8s/flux
 kustomize build deploy/k8s/infrastructure
 kustomize build deploy/k8s/databases
 kustomize build --load-restrictor=LoadRestrictionsNone deploy/k8s/apps/overlays/dev
+```
+
+## Image automation (CD without touching the tag by hand)
+
+The `image-reflector` + `image-automation` controllers close the loop:
+
+```
+CI pushes  ghcr.io/.../cargo-shipment:main-20260618T1625   (sortable tag)
+   │
+   ▼
+ImageRepository  scans GHCR tags every 5m
+   │
+   ▼
+ImagePolicy      filters ^main-(\d+)$, picks the newest
+   │
+   ▼
+ImageUpdateAutomation  rewrites the $imagepolicy marker in
+                       apps/overlays/dev/kustomization.yaml → commits to main
+   │
+   ▼
+Flux reconciles the new tag onto the cluster
+```
+
+- CI tags every `main` build with `main-<UTC timestamp>` (see the
+  `image-*.yml` workflows) — moving tags like `:main`/`:latest` are not
+  orderable, so the policy ignores them.
+- The markers live on the `newTag` lines in `apps/overlays/dev`.
+- **Write credentials required**: the automation pushes commits back to
+  `main`, so the `flux-system` GitRepository needs a write-capable secret —
+  see `sync.pullSecret` in `flux-instance.yaml`. Without it, scanning and
+  policy selection still work, but the commit/push step fails.
+- web is excluded (no CI image / policy yet).
+
+```bash
+# Inspect what the controllers see
+flux get image repository
+flux get image policy
+flux get image update
 ```
 
 ## Known gaps / notes
