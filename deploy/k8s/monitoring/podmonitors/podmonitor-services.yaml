@@ -1,8 +1,10 @@
 # Scrapes the three Spring services' Micrometer metrics straight off the
-# pods (the management port 8081 / actuator/prometheus). A PodMonitor (not
+# pods (management port 8081 / actuator/prometheus). A PodMonitor (not
 # ServiceMonitor) so notification — which has no Service — is covered too.
-# Prometheus picks this up because the stack disables the helm-label
-# selector (selects all PodMonitors cluster-wide).
+#
+# Lives in its own Flux Kustomization (dependsOn: monitoring) because the
+# PodMonitor CRD ships with kube-prometheus-stack; keeping it here lets the
+# Helm stack install first instead of failing the whole apply on a missing CRD.
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:

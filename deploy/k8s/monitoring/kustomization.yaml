@@ -7,5 +7,4 @@ resources:
   - tempo.yaml
   - loki.yaml
   - promtail.yaml
-  - podmonitor-services.yaml
   - dashboards

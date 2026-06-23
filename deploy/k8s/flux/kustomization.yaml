@@ -17,3 +17,4 @@ resources:
   - apps.yaml
   - images.yaml
   - monitoring.yaml
+  - monitoring-podmonitors.yaml
