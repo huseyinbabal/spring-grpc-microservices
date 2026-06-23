@@ -18,12 +18,37 @@ spec:
       labels:
         app: connect
     spec:
+      # Fetch the OpenTelemetry Java agent so the Connect JVM emits Kafka
+      # PRODUCER spans. Debezium continues the trace from the outbox's
+      # tracingspancontext, so the produced record's span joins the trace —
+      # making the Kafka hop (shipment → connect → kafka → consumers) show
+      # up as a node in Tempo's service graph instead of collapsing.
+      initContainers:
+        - name: fetch-otel-agent
+          image: curlimages/curl:8.10.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - >
+              curl -fsSL -o /otel/opentelemetry-javaagent.jar
+              https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/2.10.0/opentelemetry-javaagent-2.10.0.jar
+          volumeMounts:
+            - { name: otel-agent, mountPath: /otel }
       containers:
         - name: connect
           image: quay.io/debezium/connect:2.7.3.Final
           ports:
             - { name: rest, containerPort: 8083 }
+          volumeMounts:
+            - { name: otel-agent, mountPath: /otel, readOnly: true }
           env:
+            - { name: JAVA_TOOL_OPTIONS, value: "-javaagent:/otel/opentelemetry-javaagent.jar" }
+            - { name: OTEL_SERVICE_NAME, value: "debezium-connect" }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring.svc.cluster.local:4317" }
+            - { name: OTEL_EXPORTER_OTLP_PROTOCOL, value: "grpc" }
+            - { name: OTEL_TRACES_EXPORTER, value: "otlp" }
+            - { name: OTEL_METRICS_EXPORTER, value: "none" }
+            - { name: OTEL_LOGS_EXPORTER, value: "none" }
+            - { name: OTEL_TRACES_SAMPLER, value: "always_on" }
             - { name: BOOTSTRAP_SERVERS, value: "cargo-kafka-bootstrap:9092" }
             - { name: GROUP_ID, value: "1" }
             - { name: CONFIG_STORAGE_TOPIC, value: "connect-configs" }
@@ -44,3 +69,6 @@ spec:
           resources:
             requests: { cpu: 100m, memory: 512Mi }
             limits:   { cpu: "1",  memory: 1Gi }
+      volumes:
+        - name: otel-agent
+          emptyDir: {}
