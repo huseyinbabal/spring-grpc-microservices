@@ -3,6 +3,10 @@
 # keeps the names stable; folder annotation groups them under "Cargo".
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# Generated ConfigMaps need an explicit namespace (the parent layer can't
+# set one globally without moving the flux-system HelmReleases). The
+# Grafana sidecar discovers dashboards in all namespaces regardless.
+namespace: monitoring
 generatorOptions:
   disableNameSuffixHash: true
   labels:
