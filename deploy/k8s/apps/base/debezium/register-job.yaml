@@ -51,6 +51,7 @@ spec:
                   "table.include.list": "public.outbox",
                   "plugin.name": "pgoutput",
                   "publication.name": "dbz_shipment_outbox",
+                  "publication.autocreate.mode": "filtered",
                   "slot.name": "dbz_shipment_outbox",
                   "snapshot.mode": "initial",
                   "heartbeat.interval.ms": "10000",
