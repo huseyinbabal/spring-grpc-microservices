@@ -38,16 +38,6 @@ spec:
       metricsGenerator:
         enabled: true
         remoteWriteUrl: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
-        # Make Kafka show up as a node: the consumer spans carry
-        # peer.service="Apache Kafka: ...", but Debezium (the producer)
-        # emits no span. Virtual nodes turn that peer into a graph node
-        # instead of collapsing the edge to "user".
-        processor:
-          service_graphs:
-            peer_attributes:
-              - peer.service
-              - messaging.system
-            enable_virtual_node_label: true
       # Enable the generator processors for the default tenant. Without
       # this, overrides.defaults stays empty and no service-graph/span
       # metrics are produced (the value path is tempo.overrides.defaults).
