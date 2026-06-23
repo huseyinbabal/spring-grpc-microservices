@@ -57,5 +57,6 @@ k8s-validate:
 	kustomize build deploy/k8s/infrastructure >/dev/null
 	kustomize build deploy/k8s/databases >/dev/null
 	kustomize build deploy/k8s/image-automation >/dev/null
+	kustomize build deploy/k8s/monitoring >/dev/null
 	kustomize build --load-restrictor=LoadRestrictionsNone deploy/k8s/apps/overlays/dev >/dev/null
 	@echo "all kustomize layers build OK"

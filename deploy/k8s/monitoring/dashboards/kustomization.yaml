@@ -1,0 +1,18 @@
+# Grafana auto-imports any ConfigMap labelled grafana_dashboard (the
+# kube-prometheus-stack sidecar watches all namespaces). disableNameSuffixHash
+# keeps the names stable; folder annotation groups them under "Cargo".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: Cargo
+configMapGenerator:
+  - name: dashboard-jvm
+    files:
+      - jvm.json
+  - name: dashboard-postgres
+    files:
+      - postgres.json

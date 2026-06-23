@@ -6,9 +6,9 @@ resources:
 generatorOptions:
   disableNameSuffixHash: true
 configMapGenerator:
-  # Reuses the exact Compose Envoy config. Its clusters point at
-  # `shipment`/`tracking` (resolved by k8s DNS in this namespace) over
-  # mTLS with SNI/SAN = the service name.
+  # K8s-specific Envoy config (adds OpenTelemetry tracing → Tempo). Same
+  # routes + mTLS upstreams as Compose; clusters resolve `shipment`/
+  # `tracking` by k8s DNS in this namespace.
   - name: envoy-config
     files:
-      - ../../../../envoy/envoy.yaml
+      - envoy.yaml

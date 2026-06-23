@@ -39,9 +39,9 @@ spec:
               value: "true"
             - name: CARGO_AUTH_JWKS_URI
               value: http://keycloak:8080/realms/cargo/protocol/openid-connect/certs
-            # Session 08 deploys Tempo; until then OTLP export is a no-op.
+            # Micrometer/OTLP traces → Tempo (monitoring ns), OTLP/HTTP.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: http://tempo.cargo.svc.cluster.local:4318/v1/traces
+              value: http://tempo.monitoring.svc.cluster.local:4318/v1/traces
           volumeMounts:
             - name: tls
               mountPath: /etc/cargo/tls

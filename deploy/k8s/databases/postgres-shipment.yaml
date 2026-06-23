@@ -15,6 +15,9 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:16
   storage:
     size: 1Gi
+  # CNPG operator creates a PodMonitor (cnpg_* metrics) for this cluster.
+  monitoring:
+    enablePodMonitor: true
   postgresql:
     parameters:
       wal_level: logical

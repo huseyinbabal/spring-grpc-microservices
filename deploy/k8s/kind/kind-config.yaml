@@ -8,6 +8,7 @@
 #   localhost:8080  -> Envoy gRPC-Web edge      (NodePort 30080)
 #   localhost:3000  -> Nuxt web UI              (NodePort 30000)
 #   localhost:8180  -> Keycloak admin console   (NodePort 30180)
+#   localhost:3001  -> Grafana                   (NodePort 30300)
 #
 # NOTE (see project memory): a stale `kubectl port-forward` on 8080 or a
 # local Go controller on 8083 will collide with these. `lsof -i :8080`
@@ -26,4 +27,7 @@ nodes:
         protocol: TCP
       - containerPort: 30180   # keycloak NodePort
         hostPort: 8180
+        protocol: TCP
+      - containerPort: 30300   # grafana NodePort
+        hostPort: 3001
         protocol: TCP

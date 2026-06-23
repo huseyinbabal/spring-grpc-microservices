@@ -1,0 +1,63 @@
+# Loki (single-binary, filesystem) — log backend. Promtail ships container
+# logs here; Grafana's Loki datasource queries it, and the Tempo datasource
+# links spans → logs by trace id.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: loki
+  namespace: flux-system
+spec:
+  interval: 1h
+  timeout: 15m
+  releaseName: loki
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: loki
+      version: ">=6.6.0"   # pin exactly for prod
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    deploymentMode: SingleBinary
+    loki:
+      auth_enabled: false
+      commonConfig:
+        replication_factor: 1
+      storage:
+        type: filesystem
+      schemaConfig:
+        configs:
+          - from: "2024-01-01"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+      # Single-binary needs a ruler target disabled / minimal limits.
+      limits_config:
+        retention_period: 72h
+    singleBinary:
+      replicas: 1
+    # Disable the microservices-mode components + caches + extras.
+    read:
+      replicas: 0
+    write:
+      replicas: 0
+    backend:
+      replicas: 0
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+    lokiCanary:
+      enabled: false
+    test:
+      enabled: false
+    gateway:
+      enabled: false

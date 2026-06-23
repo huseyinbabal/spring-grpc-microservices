@@ -11,6 +11,8 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:16
   storage:
     size: 1Gi
+  monitoring:
+    enablePodMonitor: true
   bootstrap:
     initdb:
       database: tracking

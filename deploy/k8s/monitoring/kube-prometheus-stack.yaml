@@ -1,0 +1,85 @@
+# Prometheus Operator + Prometheus + Grafana + node-exporter +
+# kube-state-metrics. Provides the ServiceMonitor/PodMonitor CRDs the rest
+# of the stack relies on. Alertmanager is off (not needed for the demo).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: flux-system
+spec:
+  interval: 1h
+  timeout: 20m
+  releaseName: kube-prometheus-stack
+  targetNamespace: monitoring
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: ">=65.0.0"   # pin exactly for prod
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    alertmanager:
+      enabled: false
+
+    prometheus:
+      prometheusSpec:
+        # Tempo's metrics-generator remote-writes service-graph/span
+        # metrics here for the Grafana Service Graph.
+        enableRemoteWriteReceiver: true
+        # Discover ServiceMonitors/PodMonitors in ALL namespaces
+        # (ours live in cargo + monitoring), not just helm-labelled ones.
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        retention: 24h
+        resources:
+          requests: { cpu: 200m, memory: 768Mi }
+          limits:   { memory: 1536Mi }
+
+    grafana:
+      adminPassword: admin
+      service:
+        type: NodePort
+        nodePort: 30300        # kind maps host :3001 → 30300
+      # Datasources beyond the auto-provisioned Prometheus.
+      additionalDataSources:
+        - name: Tempo
+          type: tempo
+          uid: tempo
+          access: proxy
+          url: http://tempo.monitoring.svc.cluster.local:3100
+          jsonData:
+            # Powers the Service Graph (reads RED/graph metrics from Prom).
+            serviceMap:
+              datasourceUid: prometheus
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+              spanStartTimeShift: "-1h"
+              spanEndTimeShift: "1h"
+            nodeGraph:
+              enabled: true
+        - name: Loki
+          type: loki
+          uid: loki
+          access: proxy
+          url: http://loki.monitoring.svc.cluster.local:3100
+      # Auto-import any ConfigMap labelled grafana_dashboard, any namespace.
+      sidecar:
+        dashboards:
+          enabled: true
+          label: grafana_dashboard
+          searchNamespace: ALL
+          folderAnnotation: grafana_folder
+          provider:
+            foldersFromFilesStructure: true
+        datasources:
+          enabled: true

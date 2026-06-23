@@ -16,3 +16,4 @@ resources:
   - databases.yaml
   - apps.yaml
   - images.yaml
+  - monitoring.yaml
