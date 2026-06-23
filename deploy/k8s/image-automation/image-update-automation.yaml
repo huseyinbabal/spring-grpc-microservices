@@ -23,11 +23,12 @@ spec:
       author:
         name: fluxcdbot
         email: fluxcdbot@users.noreply.github.com
+      # Newer Flux dropped `.Updated`; use `.Changed`.
       messageTemplate: |
         deploy(k8s): automated image update
 
-        {{ range $image, $_ := .Updated.Images -}}
-        - {{ $image }}
+        {{ range .Changed.Changes -}}
+        - {{ .OldValue }} -> {{ .NewValue }}
         {{ end -}}
     push:
       branch: main
