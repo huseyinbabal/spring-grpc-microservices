@@ -55,7 +55,8 @@ spec:
           type: tempo
           uid: tempo
           access: proxy
-          url: http://tempo.monitoring.svc.cluster.local:3100
+          # Tempo's query API is on 3200 (single-binary chart), not 3100.
+          url: http://tempo.monitoring.svc.cluster.local:3200
           jsonData:
             # Powers the Service Graph (reads RED/graph metrics from Prom).
             serviceMap:
