@@ -179,6 +179,11 @@ Host access: Grafana on `localhost:3001` (admin/admin).
 - **Dashboard metric names**: the JVM dashboard uses stable Micrometer
   names; the PostgreSQL panels use `cnpg_*` names — confirm against your
   CNPG version (Explore) and tweak if a panel shows "No data".
+- **CNPG PodMonitor timing**: `enablePodMonitor` only creates the
+  PodMonitor once the Prometheus-operator CRD exists. If the CNPG clusters
+  reconcile before the monitoring stack installs, the PodMonitors appear
+  on the operator's next resync — force it with
+  `kubectl rollout restart deployment -n cnpg-system`.
 - **Observability** (Loki/Tempo/Prometheus/Grafana) is **Session 08**.
   Services keep their `OTEL_EXPORTER_OTLP_ENDPOINT` set; until Tempo
   exists, OTLP export is a harmless no-op.
