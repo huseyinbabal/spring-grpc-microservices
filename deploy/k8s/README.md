@@ -31,6 +31,7 @@ app role so Debezium's `pgoutput` plugin can tail the outbox table.
 | `apps/base/` | Deployments/Services + generators reusing `deploy/{tls,envoy,keycloak}` |
 | `apps/overlays/dev/` | namespace `cargo` + image tags (`:main`) + `$imagepolicy` markers |
 | `image-automation/` | `ImageRepository` + `ImagePolicy` + `ImageUpdateAutomation` per service |
+| `monitoring/` | kube-prometheus-stack, Tempo, Loki/Promtail, PodMonitor, dashboards |
 
 The TLS Secret, Envoy config and Keycloak realm are **generated from the
 exact same files Compose mounts** (`deploy/tls`, `deploy/envoy`,
@@ -133,11 +134,51 @@ flux get image policy
 flux get image update
 ```
 
+## Observability (Session 08)
+
+The `monitoring` layer adds metrics, logs and traces — all codified.
+
+**Traces (single end-to-end trace).** Envoy runs the OpenTelemetry tracer:
+it opens the root span for each browser request and propagates W3C
+`traceparent` upstream. The Spring services continue the trace over gRPC
+(service→service) and over Kafka — the Debezium outbox carries the span
+context as the `traceparent` header (`tracingspancontext` SMT), so the
+shipment→Debezium→Kafka→tracking/notification hop stays in the same trace.
+Everyone exports OTLP to Tempo:
+
+```
+web ──▶ envoy(root span) ──▶ shipment ──▶ outbox→Debezium→Kafka ──▶ tracking
+                          │                                       └▶ notification
+                          └▶ (tracking enrichment) ──▶ shipment
+                 all spans → Tempo → one trace id
+```
+
+Tempo's metrics-generator derives RED + service-graph metrics and
+remote-writes them to Prometheus, which powers Grafana's **Service Graph**
+(Explore → Tempo → Service Graph).
+
+**Metrics.** A `PodMonitor` scrapes the three services' Micrometer endpoint
+(`/actuator/prometheus` on :8081 → JVM, GC, threads, HTTP/gRPC). CNPG's
+`enablePodMonitor` exposes `cnpg_*` Postgres metrics. Both feed Prometheus;
+Grafana ships codified **JVM** and **PostgreSQL** dashboards (auto-imported
+by the sidecar from the `grafana_dashboard`-labelled ConfigMaps).
+
+**Logs.** Promtail → Loki; Grafana's Tempo datasource links a span to its
+logs by trace id (Traces → Logs).
+
+Host access: Grafana on `localhost:3001` (admin/admin).
+
 ## Known gaps / notes
 
 - **Multi-arch images**: services + web are built for `linux/amd64` and
   `linux/arm64` (Apple Silicon kind nodes need arm64). The arm64 layer is
   emulated via QEMU in CI, so image builds are slower.
+- **Monitoring chart values** (Tempo metrics-generator, Loki single-binary)
+  use floating chart ranges and best-known value schemas; verify against
+  the resolved chart versions on first bring-up and pin for prod.
+- **Dashboard metric names**: the JVM dashboard uses stable Micrometer
+  names; the PostgreSQL panels use `cnpg_*` names — confirm against your
+  CNPG version (Explore) and tweak if a panel shows "No data".
 - **Observability** (Loki/Tempo/Prometheus/Grafana) is **Session 08**.
   Services keep their `OTEL_EXPORTER_OTLP_ENDPOINT` set; until Tempo
   exists, OTLP export is a harmless no-op.
