@@ -38,12 +38,12 @@ spec:
       metricsGenerator:
         enabled: true
         remoteWriteUrl: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
-    # Turn the processors on for the default tenant.
-    metricsGenerator:
-      enabled: true
-    global_overrides:
-      defaults:
-        metrics_generator:
-          processors:
-            - service-graphs
-            - span-metrics
+      # Enable the generator processors for the default tenant. Without
+      # this, overrides.defaults stays empty and no service-graph/span
+      # metrics are produced (the value path is tempo.overrides.defaults).
+      overrides:
+        defaults:
+          metrics_generator:
+            processors:
+              - service-graphs
+              - span-metrics
